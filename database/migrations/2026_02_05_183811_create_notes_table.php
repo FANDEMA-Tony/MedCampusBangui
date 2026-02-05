@@ -1,0 +1,35 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up(): void
+    {
+        Schema::create('notes', function (Blueprint $table) {
+            $table->bigIncrements('id_note');
+            $table->unsignedBigInteger('id_etudiant');
+            $table->unsignedBigInteger('id_cours');
+            $table->decimal('valeur', 5, 2);
+            $table->date('date_attribution')->nullable();
+            $table->timestamps();
+
+            $table->foreign('id_etudiant')
+                  ->references('id_etudiant')
+                  ->on('etudiants')
+                  ->onDelete('cascade');
+
+            $table->foreign('id_cours')
+                  ->references('id_cours')
+                  ->on('cours')
+                  ->onDelete('cascade');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('notes');
+    }
+};
+
