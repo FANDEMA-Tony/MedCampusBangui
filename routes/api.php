@@ -7,21 +7,31 @@ use App\Http\Controllers\Api\EnseignantController;
 use App\Http\Controllers\Api\CoursController;
 use App\Http\Controllers\Api\NoteController;
 
-// 🔹 Authentification (publiques)
+/// 🔹 Authentification
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth.jwt');
 
-// 🔹 Routes protégées par JWT
+// 🔹 Routes protégées par JWT + rôles
 Route::middleware(['auth.jwt'])->group(function () {
-    // 🎓 Étudiants
-    Route::apiResource('etudiants', EtudiantController::class);
 
-    // 👨‍🏫 Enseignants
-    Route::apiResource('enseignants', EnseignantController::class);
+    // 🎓 Étudiants → admin uniquement
+    Route::apiResource('etudiants', EtudiantController::class)
+        ->middleware('role:admin');
 
-    // 📚 Cours
-    Route::apiResource('cours', CoursController::class);
+    // 👨‍🏫 Enseignants → admin uniquement
+    Route::apiResource('enseignants', EnseignantController::class)
+        ->middleware('role:admin');
 
-    // 📝 Notes
-    Route::apiResource('notes', NoteController::class);
+    // 📚 Cours → admin + enseignant
+    Route::apiResource('cours', CoursController::class)
+        ->middleware('role:admin,enseignant');
+
+    // 📝 Notes → enseignant uniquement
+    Route::apiResource('notes', NoteController::class)
+        ->middleware('role:enseignant');
+});
+Route::middleware(['auth.jwt', 'role:etudiant'])->group(function () {
+    Route::get('/etudiants', [EtudiantController::class, 'index']);
+    Route::get('/etudiants/{etudiant}', [EtudiantController::class, 'show']);
 });
