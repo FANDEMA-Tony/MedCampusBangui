@@ -22,19 +22,24 @@ class Utilisateur extends Authenticatable implements JWTSubject
         'mot_de_passe',
     ];
 
+    // 🔹 Pour JWT - Identifiant unique
     public function getJWTIdentifier()
     {
         return $this->getKey();
     }
 
+    // 🔹 Pour JWT - Ajouter le rôle dans le token
     public function getJWTCustomClaims()
     {
-        return [];
+        return [
+            'role' => $this->role, // Important pour le middleware
+            'nom' => $this->nom,
+        ];
     }
 
+    // 🔹 Pour que Laravel sache quel champ utiliser comme mot de passe
     public function getAuthPassword()
     {
         return $this->mot_de_passe;
     }
-
 }

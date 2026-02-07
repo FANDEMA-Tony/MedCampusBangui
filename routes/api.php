@@ -7,31 +7,39 @@ use App\Http\Controllers\Api\EnseignantController;
 use App\Http\Controllers\Api\CoursController;
 use App\Http\Controllers\Api\NoteController;
 
-/// 🔹 Authentification
+// 🔹 Routes publiques - Pas besoin d'être connecté
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth.jwt');
 
-// 🔹 Routes protégées par JWT + rôles
-Route::middleware(['auth.jwt'])->group(function () {
+// 🔹 Routes protégées - Il faut être connecté avec JWT
+Route::middleware('auth.jwt')->group(function () {
+    
+    // Déconnexion
+    Route::post('/logout', [AuthController::class, 'logout']);
+    // Déconnexion
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/me', [AuthController::class, 'me']); // 🔹 AJOUTE CETTE LIGNE
 
-    // 🎓 Étudiants → admin uniquement
-    Route::apiResource('etudiants', EtudiantController::class)
-        ->middleware('role:admin');
+    // 👨‍💼 ADMIN uniquement
+    Route::middleware('role:admin')->group(function () {
+        Route::apiResource('etudiants', EtudiantController::class);
+        Route::apiResource('enseignants', EnseignantController::class);
+    });
 
-    // 👨‍🏫 Enseignants → admin uniquement
-    Route::apiResource('enseignants', EnseignantController::class)
-        ->middleware('role:admin');
+    // 📚 ADMIN ou ENSEIGNANT
+    Route::middleware('role:admin,enseignant')->group(function () {
+        Route::apiResource('cours', CoursController::class);
+    });
 
-    // 📚 Cours → admin + enseignant
-    Route::apiResource('cours', CoursController::class)
-        ->middleware('role:admin,enseignant');
+    // 📝 ENSEIGNANT uniquement
+    Route::middleware('role:enseignant')->group(function () {
+        Route::apiResource('notes', NoteController::class);
+    });
 
-    // 📝 Notes → enseignant uniquement
-    Route::apiResource('notes', NoteController::class)
-        ->middleware('role:enseignant');
-});
-Route::middleware(['auth.jwt', 'role:etudiant'])->group(function () {
-    Route::get('/etudiants', [EtudiantController::class, 'index']);
-    Route::get('/etudiants/{etudiant}', [EtudiantController::class, 'show']);
+    // 👨‍🎓 ETUDIANT uniquement
+    Route::middleware('role:etudiant')->group(function () {
+        Route::get('/mes-informations', [EtudiantController::class, 'show']);
+        Route::get('/mes-cours', [CoursController::class, 'index']);
+        Route::get('/mes-notes', [NoteController::class, 'index']);
+    });
 });

@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Utilisateur;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
+use Tymon\JWTAuth\Facades\JWTAuth;
+use Tymon\JWTAuth\Exceptions\JWTException;
 
 class AuthController extends Controller
 {
@@ -14,72 +17,177 @@ class AuthController extends Controller
      */
     public function register(Request $request)
     {
-        // ✅ Validation avec messages personnalisés
-        $data = $request->validate([
+        $validator = Validator::make($request->all(), [
             'nom' => 'required|string|max:255',
-            'email' => 'required|email|unique:utilisateurs,email',
+            'email' => 'required|string|email|max:255|unique:utilisateurs,email',
             'mot_de_passe' => 'required|string|min:6',
-            'role' => 'in:admin,enseignant,etudiant,invite'
+            'role' => 'required|in:admin,enseignant,etudiant,invite',
         ], [
             'nom.required' => 'Le nom est obligatoire.',
-            'email.required' => 'L’email est obligatoire.',
-            'email.email' => 'L’email doit être valide.',
+            'nom.max' => 'Le nom ne doit pas dépasser 255 caractères.',
+            'email.required' => 'L\'email est obligatoire.',
+            'email.email' => 'L\'email doit être valide.',
             'email.unique' => 'Cet email est déjà utilisé.',
             'mot_de_passe.required' => 'Le mot de passe est obligatoire.',
             'mot_de_passe.min' => 'Le mot de passe doit contenir au moins 6 caractères.',
-            'role.in' => 'Le rôle doit être admin, enseignant, etudiant ou invite.'
+            'role.required' => 'Le rôle est obligatoire.',
+            'role.in' => 'Le rôle doit être admin, enseignant, etudiant ou invite.',
         ]);
 
-        $user = Utilisateur::create([
-            'nom' => $data['nom'],
-            'email' => $data['email'],
-            'mot_de_passe' => Hash::make($data['mot_de_passe']),
-            'role' => $data['role'] ?? 'invite',
-        ]);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $validator->errors()
+            ], 422);
+        }
 
-        return response()->json([
-            'message' => 'Utilisateur créé avec succès',
-            'user' => $user
-        ], 201);
+        try {
+            // 🔹 Créer l'utilisateur
+            $utilisateur = Utilisateur::create([
+                'nom' => $request->nom,
+                'email' => $request->email,
+                'mot_de_passe' => Hash::make($request->mot_de_passe),
+                'role' => $request->role ?? 'invite',
+                'statut' => 'actif',
+            ]);
+
+            // 🔹 Générer le token JWT
+            $token = JWTAuth::fromUser($utilisateur);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Utilisateur créé avec succès',
+                'utilisateur' => [
+                    'id' => $utilisateur->id_utilisateur,
+                    'nom' => $utilisateur->nom,
+                    'email' => $utilisateur->email,
+                    'role' => $utilisateur->role,
+                    'statut' => $utilisateur->statut,
+                ],
+                'access_token' => $token,
+                'token_type' => 'bearer',
+            ], 201);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Une erreur est survenue lors de la création de l\'utilisateur. Veuillez réessayer.',
+            ], 500);
+        }
     }
 
     /**
-     * Connexion utilisateur et génération du token JWT
+     * Connexion d'un utilisateur
      */
     public function login(Request $request)
     {
-        $credentials = $request->validate([
+        $validator = Validator::make($request->all(), [
             'email' => 'required|email',
-            'mot_de_passe' => 'required|string|min:6'
+            'mot_de_passe' => 'required|string|min:6',
         ], [
-            'email.required' => 'L’email est obligatoire.',
-            'email.email' => 'L’email doit être valide.',
+            'email.required' => 'L\'email est obligatoire.',
+            'email.email' => 'L\'email doit être valide.',
             'mot_de_passe.required' => 'Le mot de passe est obligatoire.',
-            'mot_de_passe.min' => 'Le mot de passe doit contenir au moins 6 caractères.'
+            'mot_de_passe.min' => 'Le mot de passe doit contenir au moins 6 caractères.',
         ]);
 
-        $loginData = [
-            'email' => $credentials['email'],
-            'password' => $credentials['mot_de_passe']
-        ];
-
-        if (!$token = auth('api')->attempt($loginData)) {
-            return response()->json(['error' => 'Identifiants invalides'], 401);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $validator->errors()
+            ], 422);
         }
 
-        return response()->json([
-            'message' => 'Connexion réussie',
-            'token' => $token,
-            'user' => auth('api')->user()
-        ]);
+        try {
+            // 🔹 Chercher l'utilisateur par email
+            $utilisateur = Utilisateur::where('email', $request->email)->first();
+
+            // 🔹 Vérifier si l'utilisateur existe et si le mot de passe est correct
+            if (!$utilisateur || !Hash::check($request->mot_de_passe, $utilisateur->mot_de_passe)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email ou mot de passe incorrect. Veuillez vérifier vos identifiants.'
+                ], 401);
+            }
+
+            // 🔹 Générer le token JWT
+            $token = JWTAuth::fromUser($utilisateur);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Connexion réussie',
+                'utilisateur' => [
+                    'id' => $utilisateur->id_utilisateur,
+                    'nom' => $utilisateur->nom,
+                    'email' => $utilisateur->email,
+                    'role' => $utilisateur->role,
+                ],
+                'access_token' => $token,
+                'token_type' => 'bearer',
+            ], 200);
+
+        } catch (JWTException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Une erreur est survenue lors de la génération du token. Veuillez réessayer.',
+            ], 500);
+        }
     }
 
     /**
-     * Déconnexion utilisateur
+     * Déconnexion d'un utilisateur
      */
     public function logout()
     {
-        auth('api')->logout();
-        return response()->json(['message' => 'Déconnexion réussie']);
+        try {
+            JWTAuth::invalidate(JWTAuth::getToken());
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Déconnexion réussie'
+            ], 200);
+
+        } catch (JWTException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Une erreur est survenue lors de la déconnexion. Veuillez réessayer.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtenir les informations de l'utilisateur connecté
+     */
+    public function me()
+    {
+        try {
+            $utilisateur = JWTAuth::parseToken()->authenticate();
+
+            if (!$utilisateur) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Utilisateur non trouvé. Veuillez vous reconnecter.'
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'utilisateur' => [
+                    'id' => $utilisateur->id_utilisateur,
+                    'nom' => $utilisateur->nom,
+                    'email' => $utilisateur->email,
+                    'role' => $utilisateur->role,
+                    'statut' => $utilisateur->statut,
+                ]
+            ], 200);
+
+        } catch (JWTException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token invalide ou expiré. Veuillez vous reconnecter.',
+            ], 401);
+        }
     }
 }
