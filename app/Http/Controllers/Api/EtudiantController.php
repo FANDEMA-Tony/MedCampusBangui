@@ -63,4 +63,35 @@ class EtudiantController extends BaseApiController
         $etudiant->delete();
         return $this->successResponse(null, "Étudiant supprimé avec succès", 204);
     }
+
+        /**
+     * Récupérer toutes les notes d'un étudiant
+     */
+    public function notes(Etudiant $etudiant)
+    {
+        try {
+            // Charger les notes avec les informations du cours
+            $notes = $etudiant->notes()->with('cours')->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Notes de l\'étudiant récupérées avec succès',
+                'data' => [
+                    'etudiant' => [
+                        'id' => $etudiant->id_etudiant,
+                        'nom' => $etudiant->nom,
+                        'prenom' => $etudiant->prenom,
+                        'matricule' => $etudiant->matricule
+                    ],
+                    'notes' => $notes
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Une erreur est survenue lors de la récupération des notes.'
+            ], 500);
+        }
+    }
 }

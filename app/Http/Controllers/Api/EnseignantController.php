@@ -63,4 +63,36 @@ class EnseignantController extends BaseApiController
         $enseignant->delete();
         return $this->successResponse(null, "Enseignant supprimé avec succès", 204);
     }
+
+        /**
+     * Récupérer tous les cours d'un enseignant
+     */
+    public function cours(Enseignant $enseignant)
+    {
+        try {
+            // Charger les cours de l'enseignant
+            $cours = $enseignant->cours()->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Cours de l\'enseignant récupérés avec succès',
+                'data' => [
+                    'enseignant' => [
+                        'id' => $enseignant->id_enseignant,
+                        'nom' => $enseignant->nom,
+                        'prenom' => $enseignant->prenom,
+                        'matricule' => $enseignant->matricule,
+                        'specialite' => $enseignant->specialite
+                    ],
+                    'cours' => $cours
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Une erreur est survenue lors de la récupération des cours.'
+            ], 500);
+        }
+    }
 }

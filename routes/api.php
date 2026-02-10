@@ -14,21 +14,28 @@ Route::post('/login', [AuthController::class, 'login']);
 // 🔹 Routes protégées - Il faut être connecté avec JWT
 Route::middleware('auth.jwt')->group(function () {
     
-    // Déconnexion
+    // Déconnexion et informations utilisateur
     Route::post('/logout', [AuthController::class, 'logout']);
-    // Déconnexion
-    Route::post('/logout', [AuthController::class, 'logout']);
-    Route::get('/me', [AuthController::class, 'me']); // 🔹 AJOUTE CETTE LIGNE
+    Route::get('/me', [AuthController::class, 'me']);
 
     // 👨‍💼 ADMIN uniquement
     Route::middleware('role:admin')->group(function () {
         Route::apiResource('etudiants', EtudiantController::class);
         Route::apiResource('enseignants', EnseignantController::class);
+        
+        // 🔹 Relations - Notes d'un étudiant
+        Route::get('/etudiants/{etudiant}/notes', [EtudiantController::class, 'notes']);
+        
+        // 🔹 Relations - Cours d'un enseignant
+        Route::get('/enseignants/{enseignant}/cours', [EnseignantController::class, 'cours']);
     });
 
     // 📚 ADMIN ou ENSEIGNANT
     Route::middleware('role:admin,enseignant')->group(function () {
         Route::apiResource('cours', CoursController::class);
+        
+        // 🔹 Relations - Notes d'un cours
+        Route::get('/cours/{cour}/notes', [CoursController::class, 'notes']);
     });
 
     // 📝 ENSEIGNANT uniquement
