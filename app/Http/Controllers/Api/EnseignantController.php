@@ -7,6 +7,12 @@ use Illuminate\Http\Request;
 
 class EnseignantController extends BaseApiController
 {
+    // 🔹 Autorisation automatique via Policy
+    public function __construct()
+    {
+        $this->authorizeResource(Enseignant::class, 'enseignant');
+    }
+
     public function index()
     {
         $enseignants = Enseignant::paginate(10);
@@ -64,11 +70,14 @@ class EnseignantController extends BaseApiController
         return $this->successResponse(null, "Enseignant supprimé avec succès", 204);
     }
 
-        /**
+    /**
      * Récupérer tous les cours d'un enseignant
      */
     public function cours(Enseignant $enseignant)
     {
+        // 🔹 Autorisation via Policy
+        $this->authorize('view', $enseignant);
+        
         try {
             // Charger les cours de l'enseignant
             $cours = $enseignant->cours()->get();

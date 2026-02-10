@@ -7,6 +7,12 @@ use Illuminate\Http\Request;
 
 class NoteController extends BaseApiController
 {
+    // 🔹 Autorisation automatique via Policy
+    public function __construct()
+    {
+        $this->authorizeResource(Note::class, 'note');
+    }
+
     public function index()
     {
         $notes = Note::with(['etudiant', 'cours'])->paginate(10);
@@ -19,8 +25,8 @@ class NoteController extends BaseApiController
             $data = $request->validate([
                 'id_etudiant' => 'required|exists:etudiants,id_etudiant',
                 'id_cours' => 'required|exists:cours,id_cours',
-                'valeur' => 'required|numeric|min:0|max:100',
-                'date_attribution' => 'nullable|date'
+                'valeur' => 'required|numeric|min:0|max:20',
+                'date_evaluation' => 'nullable|date'
             ]);
 
             $note = Note::create($data);
@@ -40,8 +46,8 @@ class NoteController extends BaseApiController
     {
         try {
             $data = $request->validate([
-                'valeur' => 'sometimes|numeric|min:0|max:100',
-                'date_attribution' => 'nullable|date'
+                'valeur' => 'sometimes|numeric|min:0|max:20',
+                'date_evaluation' => 'nullable|date'
             ]);
 
             $note->update($data);

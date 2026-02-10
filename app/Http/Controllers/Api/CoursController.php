@@ -2,13 +2,18 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
 use App\Models\Cours;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
-class CoursController extends Controller
+class CoursController extends BaseApiController
 {
+    // 🔹 Autorisation automatique via Policy
+    public function __construct()
+    {
+        $this->authorizeResource(Cours::class, 'cour');
+    }
+
     /**
      * Liste de tous les cours
      */
@@ -80,7 +85,6 @@ class CoursController extends Controller
      */
     public function show(Cours $cour)
     {
-        // Note: Laravel utilise "cour" au singulier dans la route
         $cour->load(['enseignant']);
 
         return response()->json([
@@ -153,11 +157,14 @@ class CoursController extends Controller
         }
     }
 
-        /**
+    /**
      * Récupérer toutes les notes d'un cours
      */
     public function notes(Cours $cour)
     {
+        // 🔹 Autorisation via Policy
+        $this->authorize('view', $cour);
+        
         try {
             // Charger les notes avec les informations des étudiants
             $notes = $cour->notes()->with('etudiant')->get();
