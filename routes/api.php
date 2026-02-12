@@ -7,6 +7,8 @@ use App\Http\Controllers\Api\EnseignantController;
 use App\Http\Controllers\Api\CoursController;
 use App\Http\Controllers\Api\NoteController;
 use App\Http\Controllers\Api\RessourceMedicaleController;
+use App\Http\Controllers\Api\DonneeSanitaireController;
+use App\Http\Controllers\Api\MessageController;
 
 // 🔹 Routes publiques - Pas besoin d'être connecté
 Route::post('/register', [AuthController::class, 'register']);
@@ -65,5 +67,32 @@ Route::middleware('auth.jwt')->group(function () {
             Route::put('/{ressourceMedicale}', [RessourceMedicaleController::class, 'update']); // Modifier
             Route::delete('/{ressourceMedicale}', [RessourceMedicaleController::class, 'destroy']); // Supprimer
         });
+    });
+
+    // 🏥 Suivi sanitaire - Données sanitaires accessibles selon les rôles
+    Route::prefix('donnees-sanitaires')->group(function () {
+        
+        // Routes accessibles à tous les utilisateurs authentifiés
+        Route::get('/', [DonneeSanitaireController::class, 'index']); // Liste avec filtres
+        Route::get('/statistiques', [DonneeSanitaireController::class, 'statistiques']); // Statistiques
+        Route::get('/{donneeSanitaire}', [DonneeSanitaireController::class, 'show']); // Détails
+        
+        // Création accessible à tous (admin, enseignant, étudiant)
+        Route::post('/', [DonneeSanitaireController::class, 'store']); // Créer
+        
+        // Modification/Suppression selon permissions
+        Route::put('/{donneeSanitaire}', [DonneeSanitaireController::class, 'update']); // Modifier
+        Route::delete('/{donneeSanitaire}', [DonneeSanitaireController::class, 'destroy']); // Supprimer
+    });
+
+    // 💬 Messagerie - Accessible à tous les utilisateurs authentifiés
+    Route::prefix('messages')->group(function () {
+        Route::get('/boite-reception', [MessageController::class, 'boiteReception']); // Messages reçus
+        Route::get('/boite-envoi', [MessageController::class, 'boiteEnvoi']); // Messages envoyés
+        Route::get('/non-lus', [MessageController::class, 'nonLus']); // Compteur non lus
+        Route::get('/conversation/{utilisateurId}', [MessageController::class, 'conversation']); // Conversation
+        Route::get('/{message}', [MessageController::class, 'show']); // Détails d'un message
+        Route::post('/', [MessageController::class, 'store']); // Envoyer un message
+        Route::delete('/{message}', [MessageController::class, 'destroy']); // Supprimer
     });
 });

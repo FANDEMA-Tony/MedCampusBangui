@@ -14,6 +14,10 @@ use App\Observers\EtudiantObserver;
 use App\Observers\EnseignantObserver;
 use App\Models\RessourceMedicale;
 use App\Policies\RessourceMedicalePolicy;
+use App\Models\DonneeSanitaire;
+use App\Policies\DonneeSanitairePolicy;
+use App\Models\Message;
+use App\Policies\MessagePolicy;
 
 // 👉 Policies
 use App\Policies\EtudiantPolicy;
@@ -46,5 +50,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Cours::class, CoursPolicy::class);
         Gate::policy(Note::class, NotePolicy::class);
         Gate::policy(RessourceMedicale::class, RessourceMedicalePolicy::class);  // 🔹 AJOUT DE CETTE LIGNE
+        Gate::policy(DonneeSanitaire::class, DonneeSanitairePolicy::class);  // 🔹 AJOUT DE CETTE LIGNE
+        Gate::policy(Message::class, MessagePolicy::class);  // 🔹 AJOUT DE CETTE LIGNE
     }
 }
