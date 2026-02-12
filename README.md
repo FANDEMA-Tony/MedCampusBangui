@@ -1,59 +1,396 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# 🏥 MedCampus Bangui - Système de Gestion Académique et Sanitaire
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+> Application complète de gestion pour la Faculté de Médecine de Bangui (République Centrafricaine)
 
-## About Laravel
+[![Laravel](https://img.shields.io/badge/Laravel-12.5-red.svg)](https://laravel.com)
+[![PHP](https://img.shields.io/badge/PHP-8.2+-blue.svg)](https://php.net)
+[![MySQL](https://img.shields.io/badge/MySQL-8.0+-orange.svg)](https://mysql.com)
+[![JWT](https://img.shields.io/badge/JWT-Auth-green.svg)](https://jwt-auth.readthedocs.io)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 📋 Table des matières
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+- [À propos](#-à-propos)
+- [Fonctionnalités](#-fonctionnalités)
+- [Technologies](#-technologies)
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [API Documentation](#-api-documentation)
+- [Tests](#-tests)
+- [Sécurité](#-sécurité)
+- [Auteur](#-auteur)
 
-## Learning Laravel
+---
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+## 📖 À propos
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+**MedCampus Bangui** est une application backend complète développée avec Laravel pour faciliter la gestion académique et sanitaire de la Faculté de Médecine de Bangui.
 
-## Laravel Sponsors
+Le système permet de :
+- Gérer les étudiants, enseignants, cours et notes
+- Partager des ressources pédagogiques (PDF, vidéos)
+- Collecter et analyser des données sanitaires anonymisées
+- Communiquer via un système de messagerie intégré
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+---
 
-### Premium Partners
+## ✨ Fonctionnalités
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+### 🔐 **Authentification & Autorisation**
+- Inscription et connexion avec JWT
+- 3 rôles : Admin, Enseignant, Étudiant
+- Permissions fines avec Laravel Policies
+- Middleware personnalisés
 
-## Contributing
+### 👨‍🎓 **Gestion Académique**
+- CRUD complet pour Étudiants, Enseignants, Cours, Notes
+- Génération automatique de matricules uniques
+- Relations entre modules
+- Consultation des notes par étudiant
+- Consultation des cours par enseignant
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### 📚 **Bibliothèque Médicale**
+- Upload de fichiers (PDF, vidéos, documents)
+- Catégorisation par type, catégorie, niveau
+- Recherche avancée (titre, auteur, description)
+- Téléchargement sécurisé avec compteur
+- Filtres multiples
 
-## Code of Conduct
+### 🏥 **Suivi Sanitaire**
+- Collecte de données sanitaires anonymisées
+- Génération automatique de codes patients
+- Statistiques complètes (pathologies, gravité, démographie)
+- Filtres avancés (pathologie, période, zone géographique)
+- Export potentiel des données
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### 💬 **Messagerie**
+- Messages privés entre utilisateurs
+- Boîte de réception et d'envoi
+- Conversations groupées
+- Compteur de messages non lus
+- Marquage automatique comme lu
 
-## Security Vulnerabilities
+---
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## 🛠️ Technologies
 
-## License
+### Backend
+- **Framework** : Laravel 12.5 (PHP 8.2+)
+- **Base de données** : MySQL 8.0+
+- **Authentification** : JWT (tymon/jwt-auth)
+- **Stockage** : Laravel Storage (fichiers locaux)
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### Architecture
+- **Design Pattern** : MVC (Model-View-Controller)
+- **API** : RESTful
+- **Autorisation** : Laravel Policies
+- **Validation** : Form Requests personnalisés
+
+---
+
+## 📦 Installation
+
+### Prérequis
+```bash
+- PHP >= 8.2
+- Composer
+- MySQL >= 8.0
+- XAMPP / WAMP / MAMP (ou serveur web)
+```
+
+### Étapes d'installation
+
+1. **Cloner le dépôt**
+```bash
+git clone https://github.com/FANDEMA-Tony/medcampus-bangui.git
+cd medcampus-bangui/backend
+```
+
+2. **Installer les dépendances**
+```bash
+composer install
+```
+
+3. **Copier le fichier d'environnement**
+```bash
+cp .env.example .env
+```
+
+4. **Générer la clé d'application**
+```bash
+php artisan key:generate
+```
+
+5. **Configurer la base de données**
+
+Modifier le fichier `.env` :
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=medcampus_bangui
+DB_USERNAME=root
+DB_PASSWORD=
+```
+
+6. **Créer la base de données**
+```sql
+CREATE DATABASE medcampus_bangui CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+7. **Exécuter les migrations**
+```bash
+php artisan migrate
+```
+
+8. **Générer le secret JWT**
+```bash
+php artisan jwt:secret
+```
+
+9. **Créer le lien symbolique pour le stockage**
+```bash
+php artisan storage:link
+```
+
+10. **Lancer le serveur**
+```bash
+php artisan serve
+```
+
+L'API sera accessible sur : `http://127.0.0.1:8000`
+
+---
+
+## ⚙️ Configuration
+
+### JWT Configuration
+
+Le fichier `config/jwt.php` contient la configuration JWT. Par défaut :
+- **TTL** : 60 minutes
+- **Refresh TTL** : 20160 minutes (2 semaines)
+
+### Storage Configuration
+
+Les fichiers uploadés sont stockés dans `storage/app/public/ressources/`
+
+---
+
+## 📚 API Documentation
+
+### Base URL
+```
+http://127.0.0.1:8000/api
+```
+
+### Authentification
+
+#### Inscription
+```http
+POST /register
+Content-Type: application/json
+
+{
+  "nom": "Dupont",
+  "prenom": "Jean",
+  "email": "jean.dupont@medcampus.cf",
+  "mot_de_passe": "secret123",
+  "role": "enseignant"
+}
+```
+
+#### Connexion
+```http
+POST /login
+Content-Type: application/json
+
+{
+  "email": "jean.dupont@medcampus.cf",
+  "mot_de_passe": "secret123"
+}
+```
+
+**Réponse :**
+```json
+{
+  "success": true,
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGc...",
+  "token_type": "bearer",
+  "expires_in": 3600
+}
+```
+
+### Endpoints Principaux
+
+| Module | Méthode | Endpoint | Description | Rôle requis |
+|--------|---------|----------|-------------|-------------|
+| **Étudiants** | GET | `/etudiants` | Liste | Admin |
+| | POST | `/etudiants` | Créer | Admin |
+| | GET | `/etudiants/{id}` | Détails | Admin |
+| | PUT | `/etudiants/{id}` | Modifier | Admin |
+| | DELETE | `/etudiants/{id}` | Supprimer | Admin |
+| | GET | `/etudiants/{id}/notes` | Notes d'un étudiant | Admin |
+| **Enseignants** | GET | `/enseignants` | Liste | Admin |
+| | GET | `/enseignants/{id}/cours` | Cours d'un enseignant | Admin |
+| **Cours** | GET | `/cours` | Liste | Admin, Enseignant |
+| | POST | `/cours` | Créer | Admin, Enseignant |
+| | GET | `/cours/{id}/notes` | Notes d'un cours | Admin, Enseignant |
+| **Notes** | POST | `/notes` | Créer | Enseignant |
+| **Ressources** | GET | `/ressources` | Liste | Tous |
+| | POST | `/ressources` | Upload | Admin, Enseignant |
+| | GET | `/ressources/{id}/telecharger` | Télécharger | Tous |
+| **Données sanitaires** | GET | `/donnees-sanitaires` | Liste | Tous |
+| | POST | `/donnees-sanitaires` | Créer | Tous |
+| | GET | `/donnees-sanitaires/statistiques` | Stats | Tous |
+| **Messages** | GET | `/messages/boite-reception` | Messages reçus | Tous |
+| | POST | `/messages` | Envoyer | Tous |
+| | GET | `/messages/conversation/{id}` | Conversation | Tous |
+
+**Note :** Tous les endpoints nécessitent un token JWT dans le header :
+```
+Authorization: Bearer {votre_token}
+```
+
+📄 **Documentation complète** : Voir `API_DOCUMENTATION.md`
+
+---
+
+## 🧪 Tests
+
+### Tests manuels avec Postman
+
+1. Importer la collection Postman : `postman/MedCampus_Collection.json`
+2. Configurer l'environnement avec votre token JWT
+3. Exécuter les tests dans l'ordre
+
+### Résultats des tests
+
+✅ **68 tests validés** couvrant :
+- Authentification (3 tests)
+- Module académique (21 tests)
+- Bibliothèque médicale (12 tests)
+- Suivi sanitaire (13 tests)
+- Messagerie (10 tests)
+- Permissions et sécurité (9 tests)
+
+---
+
+## 🔒 Sécurité
+
+### Mesures de sécurité implémentées
+
+- ✅ **Authentification JWT** avec expiration de token
+- ✅ **Hachage des mots de passe** (bcrypt)
+- ✅ **Validation stricte** des entrées utilisateur
+- ✅ **Policies Laravel** pour les permissions
+- ✅ **Middleware de rôles** personnalisés
+- ✅ **Anonymisation** des données sanitaires
+- ✅ **CSRF Protection** sur les formulaires
+- ✅ **Rate limiting** sur les routes sensibles
+
+### Bonnes pratiques
+
+- Pas de données sensibles dans les logs
+- Génération de codes patients anonymes
+- Validation des types de fichiers uploadés
+- Nettoyage des inputs utilisateur
+
+---
+
+## 📊 Structure du Projet
+backend/
+├── app/
+│   ├── Http/
+│   │   ├── Controllers/Api/
+│   │   │   ├── AuthController.php
+│   │   │   ├── EtudiantController.php
+│   │   │   ├── EnseignantController.php
+│   │   │   ├── CoursController.php
+│   │   │   ├── NoteController.php
+│   │   │   ├── RessourceMedicaleController.php
+│   │   │   ├── DonneeSanitaireController.php
+│   │   │   └── MessageController.php
+│   │   └── Middleware/
+│   │       ├── JwtMiddleware.php
+│   │       └── RoleMiddleware.php
+│   ├── Models/
+│   │   ├── Utilisateur.php
+│   │   ├── Etudiant.php
+│   │   ├── Enseignant.php
+│   │   ├── Cours.php
+│   │   ├── Note.php
+│   │   ├── RessourceMedicale.php
+│   │   ├── DonneeSanitaire.php
+│   │   └── Message.php
+│   ├── Observers/
+│   │   ├── EtudiantObserver.php
+│   │   └── EnseignantObserver.php
+│   └── Policies/
+│       ├── EtudiantPolicy.php
+│       ├── EnseignantPolicy.php
+│       ├── CoursPolicy.php
+│       ├── NotePolicy.php
+│       ├── RessourceMedicalePolicy.php
+│       ├── DonneeSanitairePolicy.php
+│       └── MessagePolicy.php
+├── database/
+│   └── migrations/
+├── routes/
+│   └── api.php
+└── storage/
+    └── app/public/ressources/    
+
+## 📊 Structure de la Base de Données
+
+Le projet utilise **9 tables principales** :
+
+1. `utilisateurs` - Comptes (admin, enseignant, étudiant)
+2. `etudiants` - Profils étudiants avec matricule auto
+3. `enseignants` - Profils enseignants avec matricule auto
+4. `cours` - Cours avec code unique
+5. `notes` - Notes des étudiants
+6. `ressources_medicales` - Fichiers pédagogiques
+7. `donnees_sanitaires` - Données anonymisées
+8. `messages` - Messagerie interne
+
+📄 **Schéma complet** : Voir `database/schema.png`
+
+---
+
+## 📄 Licence
+
+Ce projet a été développé dans le cadre d'un projet académique pour la Faculté de Médecine de Bangui.
+
+---
+
+## 👨‍💻 Auteur
+
+Développé avec ❤️ pour améliorer la gestion académique et sanitaire en République Centrafricaine.
+
+**Contact** : tonybienheureuxfandema@.Com
+
+---
+
+## 🙏 Remerciements
+
+- Laravel Framework
+- Tymon JWT Auth
+- Communauté PHP
+- Faculté de Médecine de Bangui
+
+---
+
+## 📝 Notes de version
+
+### Version 1.0.0 (Février 2026)
+- ✅ Module académique complet
+- ✅ Bibliothèque médicale avec upload
+- ✅ Suivi sanitaire avec statistiques
+- ✅ Messagerie intégrée
+- ✅ Authentification JWT
+- ✅ 68 tests validés
+
+---
+
+**🚀 Projet prêt pour la production !**
