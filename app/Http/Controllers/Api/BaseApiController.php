@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 
 class BaseApiController extends Controller
 {
+    use AuthorizesRequests;  // 🔹 AJOUTE CETTE LIGNE IMPORTANTE
+    
     protected function successResponse($data, string $message = "Succès", int $status = 200): JsonResponse
     {
         return response()->json([

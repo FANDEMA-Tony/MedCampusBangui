@@ -8,17 +8,20 @@ use Illuminate\Support\Facades\Validator;
 
 class CoursController extends BaseApiController
 {
-    // 🔹 Autorisation automatique via Policy
-    public function __construct()
-    {
-        $this->authorizeResource(Cours::class, 'cour');
-    }
+    // 🔹 SUPPRIME TOUT CE BLOC
+    // public function __construct()
+    // {
+    //     $this->authorizeResource(Cours::class, 'cour');
+    // }
 
     /**
      * Liste de tous les cours
      */
     public function index()
     {
+        // ✅ AJOUTE L'AUTORISATION ICI MANUELLEMENT
+        $this->authorize('viewAny', Cours::class);
+        
         $cours = Cours::with('enseignant')->paginate(10);
         
         return response()->json([
@@ -35,6 +38,9 @@ class CoursController extends BaseApiController
      */
     public function store(Request $request)
     {
+        // ✅ AJOUTE L'AUTORISATION ICI
+        $this->authorize('create', Cours::class);
+        
         $validator = Validator::make($request->all(), [
             'code' => 'required|string|unique:cours,code|max:50',
             'titre' => 'required|string|max:255',
@@ -85,6 +91,9 @@ class CoursController extends BaseApiController
      */
     public function show(Cours $cour)
     {
+        // ✅ AJOUTE L'AUTORISATION ICI
+        $this->authorize('view', $cour);
+        
         $cour->load(['enseignant']);
 
         return response()->json([
@@ -99,6 +108,9 @@ class CoursController extends BaseApiController
      */
     public function update(Request $request, Cours $cour)
     {
+        // ✅ AJOUTE L'AUTORISATION ICI
+        $this->authorize('update', $cour);
+        
         $validator = Validator::make($request->all(), [
             'code' => 'sometimes|string|unique:cours,code,' . $cour->id_cours . ',id_cours|max:50',
             'titre' => 'sometimes|string|max:255',
@@ -141,6 +153,9 @@ class CoursController extends BaseApiController
      */
     public function destroy(Cours $cour)
     {
+        // ✅ AJOUTE L'AUTORISATION ICI
+        $this->authorize('delete', $cour);
+        
         try {
             $cour->delete();
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\EtudiantController;
 use App\Http\Controllers\Api\EnseignantController;
 use App\Http\Controllers\Api\CoursController;
 use App\Http\Controllers\Api\NoteController;
+use App\Http\Controllers\Api\RessourceMedicaleController;
 
 // 🔹 Routes publiques - Pas besoin d'être connecté
 Route::post('/register', [AuthController::class, 'register']);
@@ -48,5 +49,21 @@ Route::middleware('auth.jwt')->group(function () {
         Route::get('/mes-informations', [EtudiantController::class, 'show']);
         Route::get('/mes-cours', [CoursController::class, 'index']);
         Route::get('/mes-notes', [NoteController::class, 'index']);
+    });
+
+    // 📚 Bibliothèque médicale - Ressources accessibles selon les rôles
+    Route::prefix('ressources')->group(function () {
+        
+        // Routes accessibles à tous les utilisateurs authentifiés
+        Route::get('/', [RessourceMedicaleController::class, 'index']); // Liste
+        Route::get('/{ressourceMedicale}', [RessourceMedicaleController::class, 'show']); // Détails
+        Route::get('/{ressourceMedicale}/telecharger', [RessourceMedicaleController::class, 'telecharger']); // Télécharger
+        
+        // Routes réservées aux admin et enseignants
+        Route::middleware('role:admin,enseignant')->group(function () {
+            Route::post('/', [RessourceMedicaleController::class, 'store']); // Créer
+            Route::put('/{ressourceMedicale}', [RessourceMedicaleController::class, 'update']); // Modifier
+            Route::delete('/{ressourceMedicale}', [RessourceMedicaleController::class, 'destroy']); // Supprimer
+        });
     });
 });

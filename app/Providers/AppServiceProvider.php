@@ -12,6 +12,8 @@ use App\Models\Cours;
 use App\Models\Note;
 use App\Observers\EtudiantObserver;
 use App\Observers\EnseignantObserver;
+use App\Models\RessourceMedicale;
+use App\Policies\RessourceMedicalePolicy;
 
 // 👉 Policies
 use App\Policies\EtudiantPolicy;
@@ -43,5 +45,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Enseignant::class, EnseignantPolicy::class);
         Gate::policy(Cours::class, CoursPolicy::class);
         Gate::policy(Note::class, NotePolicy::class);
+        Gate::policy(RessourceMedicale::class, RessourceMedicalePolicy::class);  // 🔹 AJOUT DE CETTE LIGNE
     }
 }

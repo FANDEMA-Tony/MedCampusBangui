@@ -7,20 +7,20 @@ use Illuminate\Http\Request;
 
 class EtudiantController extends BaseApiController
 {
-    // 🔹 Autorisation automatique via Policy
-    public function __construct()
-    {
-        $this->authorizeResource(Etudiant::class, 'etudiant');
-    }
-
     public function index()
     {
+        // ✅ Autorisation
+        $this->authorize('viewAny', Etudiant::class);
+        
         $etudiants = Etudiant::paginate(10);
         return $this->successResponse($etudiants, "Liste des étudiants récupérée avec succès");
     }
 
     public function store(Request $request)
     {
+        // ✅ Autorisation
+        $this->authorize('create', Etudiant::class);
+        
         try {
             $data = $request->validate([
                 'nom' => 'required|string|max:255',
@@ -41,11 +41,17 @@ class EtudiantController extends BaseApiController
 
     public function show(Etudiant $etudiant)
     {
+        // ✅ Autorisation
+        $this->authorize('view', $etudiant);
+        
         return $this->successResponse($etudiant->load('notes'), "Étudiant récupéré avec succès");
     }
 
     public function update(Request $request, Etudiant $etudiant)
     {
+        // ✅ Autorisation
+        $this->authorize('update', $etudiant);
+        
         try {
             $data = $request->validate([
                 'nom' => 'sometimes|string|max:255',
@@ -66,6 +72,9 @@ class EtudiantController extends BaseApiController
 
     public function destroy(Etudiant $etudiant)
     {
+        // ✅ Autorisation
+        $this->authorize('delete', $etudiant);
+        
         $etudiant->delete();
         return $this->successResponse(null, "Étudiant supprimé avec succès", 204);
     }
@@ -75,7 +84,7 @@ class EtudiantController extends BaseApiController
      */
     public function notes(Etudiant $etudiant)
     {
-        // 🔹 Autorisation via Policy
+        // ✅ Autorisation
         $this->authorize('view', $etudiant);
         
         try {
