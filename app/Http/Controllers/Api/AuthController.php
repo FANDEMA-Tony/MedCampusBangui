@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Utilisateur;
+use App\Models\Enseignant;
+use App\Models\Etudiant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -19,19 +21,13 @@ class AuthController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'nom' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:utilisateurs,email',
+            'prenom' => 'required|string|max:255',
+            'email' => 'required|email|unique:utilisateurs,email',
             'mot_de_passe' => 'required|string|min:6',
-            'role' => 'required|in:admin,enseignant,etudiant,invite',
-        ], [
-            'nom.required' => 'Le nom est obligatoire.',
-            'nom.max' => 'Le nom ne doit pas dépasser 255 caractères.',
-            'email.required' => 'L\'email est obligatoire.',
-            'email.email' => 'L\'email doit être valide.',
-            'email.unique' => 'Cet email est déjà utilisé.',
-            'mot_de_passe.required' => 'Le mot de passe est obligatoire.',
-            'mot_de_passe.min' => 'Le mot de passe doit contenir au moins 6 caractères.',
-            'role.required' => 'Le rôle est obligatoire.',
-            'role.in' => 'Le rôle doit être admin, enseignant, etudiant ou invite.',
+            'role' => 'required|in:admin,enseignant,etudiant',
+            'date_naissance' => 'required_if:role,enseignant,etudiant|date',
+            'specialite' => 'required_if:role,enseignant|string|max:255',
+            'filiere' => 'required_if:role,etudiant|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -43,39 +39,59 @@ class AuthController extends Controller
         }
 
         try {
-            // 🔹 Créer l'utilisateur
+            // 1️⃣ Créer l'utilisateur
             $utilisateur = Utilisateur::create([
                 'nom' => $request->nom,
+                'prenom' => $request->prenom,
                 'email' => $request->email,
                 'mot_de_passe' => Hash::make($request->mot_de_passe),
-                'role' => $request->role ?? 'invite',
-                'statut' => 'actif',
+                'role' => $request->role,
             ]);
 
-            // 🔹 Générer le token JWT
+            // 2️⃣ Créer l'enregistrement lié selon le rôle
+            if ($request->role === 'enseignant') {
+                Enseignant::create([
+                    'nom' => $request->nom,
+                    'prenom' => $request->prenom,
+                    'email' => $request->email,
+                    'date_naissance' => $request->date_naissance,
+                    'specialite' => $request->specialite,
+                    'id_utilisateur' => $utilisateur->id_utilisateur, // 🔹 LIEN
+                ]);
+            } elseif ($request->role === 'etudiant') {
+                Etudiant::create([
+                    'nom' => $request->nom,
+                    'prenom' => $request->prenom,
+                    'email' => $request->email,
+                    'date_naissance' => $request->date_naissance,
+                    'filiere' => $request->filiere,
+                    'id_utilisateur' => $utilisateur->id_utilisateur, // 🔹 LIEN
+                ]);
+            }
+
+            // 3️⃣ Générer le token JWT
             $token = JWTAuth::fromUser($utilisateur);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Utilisateur créé avec succès',
-                'utilisateur' => [
-                    'id' => $utilisateur->id_utilisateur,
-                    'nom' => $utilisateur->nom,
-                    'email' => $utilisateur->email,
-                    'role' => $utilisateur->role,
-                    'statut' => $utilisateur->statut,
-                ],
+                'message' => 'Inscription réussie',
                 'access_token' => $token,
                 'token_type' => 'bearer',
+                'expires_in' => JWTAuth::factory()->getTTL() * 60,
+                'utilisateur' => $utilisateur
             ], 201);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Une erreur est survenue lors de la création de l\'utilisateur. Veuillez réessayer.',
+                'message' => 'Une erreur est survenue lors de l\'inscription',
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile()
             ], 500);
         }
     }
+
 
     /**
      * Connexion d'un utilisateur
@@ -153,6 +169,7 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur est survenue lors de la déconnexion. Veuillez réessayer.',
+                'error' => $e->getMessage(),
             ], 500);
         }
     }

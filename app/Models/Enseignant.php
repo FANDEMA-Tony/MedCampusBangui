@@ -15,11 +15,17 @@ class Enseignant extends Model
         'email',
         'date_naissance',
         'specialite',
-        'statut'
+        'matricule',
+        'statut',
+        'id_utilisateur', // 🔹 Ajout
     ];
 
     public function cours()
     {
         return $this->hasMany(Cours::class, 'id_enseignant');
+    }
+    public function utilisateur()
+    {
+        return $this->belongsTo(Utilisateur::class, 'id_utilisateur', 'id_utilisateur');
     }
 }

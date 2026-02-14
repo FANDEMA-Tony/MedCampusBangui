@@ -12,6 +12,7 @@ class Utilisateur extends Authenticatable implements JWTSubject
 
     protected $fillable = [
         'nom',
+        'prenom',
         'email',
         'mot_de_passe',
         'role',
@@ -41,5 +42,16 @@ class Utilisateur extends Authenticatable implements JWTSubject
     public function getAuthPassword()
     {
         return $this->mot_de_passe;
+    }
+
+    // 🔹 AJOUTE CES RELATIONS
+    public function enseignant()
+    {
+        return $this->hasOne(Enseignant::class, 'id_utilisateur', 'id_utilisateur');
+    }
+
+    public function etudiant()
+    {
+        return $this->hasOne(Etudiant::class, 'id_utilisateur', 'id_utilisateur');
     }
 }
