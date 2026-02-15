@@ -54,7 +54,7 @@ class CoursPolicy
         // L'enseignant peut modifier seulement ses propres cours
         if ($utilisateur->role === 'enseignant') {
             // Trouver l'enseignant correspondant à cet utilisateur
-            $enseignant = \App\Models\Enseignant::where('email', $utilisateur->email)->first();
+            $enseignant = \App\Models\Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
             
             if ($enseignant) {
                 return $cours->id_enseignant === $enseignant->id_enseignant;
@@ -71,7 +71,7 @@ class CoursPolicy
     {
         // L'enseignant peut supprimer seulement ses propres cours
         if ($utilisateur->role === 'enseignant') {
-            $enseignant = \App\Models\Enseignant::where('email', $utilisateur->email)->first();
+            $enseignant = \App\Models\Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
             
             if ($enseignant) {
                 return $cours->id_enseignant === $enseignant->id_enseignant;

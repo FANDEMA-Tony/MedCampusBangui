@@ -35,22 +35,21 @@ Route::middleware('auth.jwt')->group(function () {
 
     // 📚 ADMIN ou ENSEIGNANT
     Route::middleware('role:admin,enseignant')->group(function () {
+        Route::get('/mes-cours', [CoursController::class, 'mesCours']);
+        Route::get('/mes-etudiants', [EtudiantController::class, 'mesEtudiants']);
+        Route::get('/mes-notes', [CoursController::class, 'mesNotes']); // 🔹 AJOUTÉ ICI
+        
         Route::apiResource('cours', CoursController::class);
+        Route::apiResource('notes', NoteController::class); // 🔹 Déplacé ici
         
         // 🔹 Relations - Notes d'un cours
         Route::get('/cours/{cour}/notes', [CoursController::class, 'notes']);
     });
 
-    // 📝 ENSEIGNANT uniquement
-    Route::middleware('role:enseignant')->group(function () {
-        Route::apiResource('notes', NoteController::class);
-    });
-
     // 👨‍🎓 ETUDIANT uniquement
     Route::middleware('role:etudiant')->group(function () {
         Route::get('/mes-informations', [EtudiantController::class, 'show']);
-        Route::get('/mes-cours', [CoursController::class, 'index']);
-        Route::get('/mes-notes', [NoteController::class, 'index']);
+        Route::get('/mes-notes-etudiant', [NoteController::class, 'mesNotes']); // 🔹 AJOUTÉ
     });
 
     // 📚 Bibliothèque médicale - Ressources accessibles selon les rôles

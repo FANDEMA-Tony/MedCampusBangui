@@ -35,7 +35,7 @@ class NotePolicy
     {
         // Un étudiant peut voir seulement ses propres notes
         if ($utilisateur->role === 'etudiant') {
-            $etudiant = \App\Models\Etudiant::where('email', $utilisateur->email)->first();
+            $etudiant = \App\Models\Etudiant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();  // ✅
             
             if ($etudiant) {
                 return $note->id_etudiant === $etudiant->id_etudiant;
@@ -44,7 +44,7 @@ class NotePolicy
 
         // Un enseignant peut voir les notes de ses cours
         if ($utilisateur->role === 'enseignant') {
-            $enseignant = \App\Models\Enseignant::where('email', $utilisateur->email)->first();
+           $enseignant = \App\Models\Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
             
             if ($enseignant && $note->cours) {
                 return $note->cours->id_enseignant === $enseignant->id_enseignant;
@@ -70,7 +70,7 @@ class NotePolicy
     {
         // Un enseignant peut modifier seulement les notes de ses cours
         if ($utilisateur->role === 'enseignant') {
-            $enseignant = \App\Models\Enseignant::where('email', $utilisateur->email)->first();
+            $enseignant = \App\Models\Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
             
             if ($enseignant && $note->cours) {
                 return $note->cours->id_enseignant === $enseignant->id_enseignant;
@@ -87,7 +87,7 @@ class NotePolicy
     {
         // Un enseignant peut supprimer seulement les notes de ses cours
         if ($utilisateur->role === 'enseignant') {
-            $enseignant = \App\Models\Enseignant::where('email', $utilisateur->email)->first();
+            $enseignant = \App\Models\Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
             
             if ($enseignant && $note->cours) {
                 return $note->cours->id_enseignant === $enseignant->id_enseignant;

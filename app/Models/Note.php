@@ -23,6 +23,6 @@ class Note extends Model
 
     public function cours()
     {
-        return $this->belongsTo(Cours::class, 'id_cours');
+        return $this->belongsTo(Cours::class, 'id_cours', 'id_cours');
     }
 }

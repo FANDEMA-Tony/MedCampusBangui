@@ -3,23 +3,18 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\Cours;
+use App\Models\Enseignant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class CoursController extends BaseApiController
 {
-    // 🔹 SUPPRIME TOUT CE BLOC
-    // public function __construct()
-    // {
-    //     $this->authorizeResource(Cours::class, 'cour');
-    // }
-
     /**
      * Liste de tous les cours
      */
     public function index()
     {
-        // ✅ AJOUTE L'AUTORISATION ICI MANUELLEMENT
+        // ✅ Autorisation
         $this->authorize('viewAny', Cours::class);
         
         $cours = Cours::with('enseignant')->paginate(10);
@@ -38,23 +33,32 @@ class CoursController extends BaseApiController
      */
     public function store(Request $request)
     {
-        // ✅ AJOUTE L'AUTORISATION ICI
+        // ✅ Autorisation
         $this->authorize('create', Cours::class);
         
-        $validator = Validator::make($request->all(), [
+        // 🔹 Règles de validation différentes selon le rôle
+        $rules = [
             'code' => 'required|string|unique:cours,code|max:50',
             'titre' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'id_enseignant' => 'required|exists:enseignants,id_enseignant'
-        ], [
+        ];
+        
+        $messages = [
             'code.required' => 'Le code du cours est obligatoire.',
             'code.unique' => 'Ce code de cours existe déjà.',
             'code.max' => 'Le code ne doit pas dépasser 50 caractères.',
             'titre.required' => 'Le titre du cours est obligatoire.',
             'titre.max' => 'Le titre ne doit pas dépasser 255 caractères.',
-            'id_enseignant.required' => 'L\'enseignant responsable est obligatoire.',
-            'id_enseignant.exists' => 'Cet enseignant n\'existe pas.'
-        ]);
+        ];
+        
+        // 🔹 SI ADMIN, il peut choisir l'enseignant
+        if (auth()->user()->role === 'admin') {
+            $rules['id_enseignant'] = 'required|exists:enseignants,id_enseignant';
+            $messages['id_enseignant.required'] = 'L\'enseignant est obligatoire.';
+            $messages['id_enseignant.exists'] = 'Cet enseignant n\'existe pas.';
+        }
+        
+        $validator = Validator::make($request->all(), $rules, $messages);
 
         if ($validator->fails()) {
             return response()->json([
@@ -65,11 +69,31 @@ class CoursController extends BaseApiController
         }
 
         try {
+            $id_enseignant = null;
+            
+            // 🔹 SI ADMIN : utilise l'id_enseignant envoyé
+            if (auth()->user()->role === 'admin') {
+                $id_enseignant = $request->id_enseignant;
+            } else {
+                // 🔹 SI ENSEIGNANT : récupère automatiquement son ID
+                $utilisateur = auth()->user();
+                $enseignant = Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
+                
+                if (!$enseignant) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Vous n\'êtes pas enregistré comme enseignant.'
+                    ], 403);
+                }
+                
+                $id_enseignant = $enseignant->id_enseignant;
+            }
+
             $cours = Cours::create([
                 'code' => $request->code,
                 'titre' => $request->titre,
                 'description' => $request->description,
-                'id_enseignant' => $request->id_enseignant
+                'id_enseignant' => $id_enseignant,
             ]);
 
             return response()->json([
@@ -81,7 +105,8 @@ class CoursController extends BaseApiController
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Une erreur est survenue lors de la création du cours.'
+                'message' => 'Une erreur est survenue lors de la création du cours.',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
@@ -91,7 +116,7 @@ class CoursController extends BaseApiController
      */
     public function show(Cours $cour)
     {
-        // ✅ AJOUTE L'AUTORISATION ICI
+        // ✅ Autorisation
         $this->authorize('view', $cour);
         
         $cour->load(['enseignant']);
@@ -108,20 +133,29 @@ class CoursController extends BaseApiController
      */
     public function update(Request $request, Cours $cour)
     {
-        // ✅ AJOUTE L'AUTORISATION ICI
+        // ✅ Autorisation
         $this->authorize('update', $cour);
         
-        $validator = Validator::make($request->all(), [
+        // 🔹 Règles de validation
+        $rules = [
             'code' => 'sometimes|string|unique:cours,code,' . $cour->id_cours . ',id_cours|max:50',
             'titre' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
-            'id_enseignant' => 'sometimes|exists:enseignants,id_enseignant'
-        ], [
+        ];
+        
+        $messages = [
             'code.unique' => 'Ce code de cours existe déjà.',
             'code.max' => 'Le code ne doit pas dépasser 50 caractères.',
             'titre.max' => 'Le titre ne doit pas dépasser 255 caractères.',
-            'id_enseignant.exists' => 'Cet enseignant n\'existe pas.'
-        ]);
+        ];
+        
+        // 🔹 SI ADMIN, il peut changer l'enseignant
+        if (auth()->user()->role === 'admin') {
+            $rules['id_enseignant'] = 'sometimes|exists:enseignants,id_enseignant';
+            $messages['id_enseignant.exists'] = 'Cet enseignant n\'existe pas.';
+        }
+
+        $validator = Validator::make($request->all(), $rules, $messages);
 
         if ($validator->fails()) {
             return response()->json([
@@ -132,7 +166,15 @@ class CoursController extends BaseApiController
         }
 
         try {
-            $cour->update($request->only(['code', 'titre', 'description', 'id_enseignant']));
+            // 🔹 Champs modifiables
+            $fieldsToUpdate = ['code', 'titre', 'description'];
+            
+            // 🔹 SI ADMIN et qu'il envoie id_enseignant, on l'ajoute
+            if (auth()->user()->role === 'admin' && $request->has('id_enseignant')) {
+                $fieldsToUpdate[] = 'id_enseignant';
+            }
+            
+            $cour->update($request->only($fieldsToUpdate));
 
             return response()->json([
                 'success' => true,
@@ -153,7 +195,7 @@ class CoursController extends BaseApiController
      */
     public function destroy(Cours $cour)
     {
-        // ✅ AJOUTE L'AUTORISATION ICI
+        // ✅ Autorisation
         $this->authorize('delete', $cour);
         
         try {
@@ -177,7 +219,7 @@ class CoursController extends BaseApiController
      */
     public function notes(Cours $cour)
     {
-        // 🔹 Autorisation via Policy
+        // ✅ Autorisation
         $this->authorize('view', $cour);
         
         try {
@@ -202,6 +244,83 @@ class CoursController extends BaseApiController
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur est survenue lors de la récupération des notes.'
+            ], 500);
+        }
+    }
+
+        /**
+     * Mes cours (pour l'enseignant connecté)
+     */
+    public function mesCours()
+    {
+        try {
+            $utilisateur = auth()->user();
+            
+            // Si enseignant, récupérer son id_enseignant
+            $enseignant = Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
+            
+            if (!$enseignant) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous n\'êtes pas enregistré comme enseignant.'
+                ], 403);
+            }
+            
+            $cours = Cours::where('id_enseignant', $enseignant->id_enseignant)
+                        ->with('enseignant')
+                        ->get();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Vos cours récupérés avec succès',
+                'data' => $cours
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des cours.'
+            ], 500);
+        }
+    }
+
+    /**
+ * Mes notes (notes des cours de l'enseignant connecté)
+ */
+public function mesNotes()
+    {
+        try {
+            $utilisateur = auth()->user();
+            
+            $enseignant = Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
+            
+            if (!$enseignant) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous n\'êtes pas enregistré comme enseignant.'
+                ], 403);
+            }
+            
+            // Récupérer tous les cours de l'enseignant
+            $mesCours = Cours::where('id_enseignant', $enseignant->id_enseignant)->pluck('id_cours');
+            
+            // Récupérer toutes les notes de ces cours
+            $notes = \App\Models\Note::whereIn('id_cours', $mesCours)
+                                    ->with(['etudiant', 'cours'])
+                                    ->orderBy('created_at', 'desc')
+                                    ->get();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Notes récupérées avec succès',
+                'data' => $notes
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des notes.',
+                'error' => $e->getMessage()
             ], 500);
         }
     }
