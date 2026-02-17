@@ -21,6 +21,7 @@ class RessourceMedicale extends Model
         'type_fichier',
         'taille_fichier',
         'nombre_telechargements',
+        'nombre_vues', // 🆕 AJOUTÉ
         'est_public',
         'ajoute_par'
     ];
@@ -29,6 +30,7 @@ class RessourceMedicale extends Model
         'est_public' => 'boolean',
         'taille_fichier' => 'integer',
         'nombre_telechargements' => 'integer',
+        'nombre_vues' => 'integer', // 🆕 AJOUTÉ
     ];
 
     /**
@@ -45,6 +47,14 @@ class RessourceMedicale extends Model
     public function incrementerTelechargements()
     {
         $this->increment('nombre_telechargements');
+    }
+
+    /**
+     * 🆕 Incrémenter le nombre de vues
+     */
+    public function incrementerVues()
+    {
+        $this->increment('nombre_vues');
     }
 
     /**

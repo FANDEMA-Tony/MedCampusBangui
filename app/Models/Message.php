@@ -12,15 +12,22 @@ class Message extends Model
     protected $fillable = [
         'expediteur_id',
         'destinataire_id',
+        'type',
+        'visibilite',
+        'id_cours',
         'sujet',
         'contenu',
         'est_lu',
-        'lu_a'
+        'lu_a',
+        'est_epingle',
+        'nombre_vues'
     ];
 
     protected $casts = [
         'est_lu' => 'boolean',
+        'est_epingle' => 'boolean',
         'lu_a' => 'datetime',
+        'nombre_vues' => 'integer',
     ];
 
     /**
@@ -32,11 +39,19 @@ class Message extends Model
     }
 
     /**
-     * Relation : Un message a un destinataire
+     * Relation : Un message a un destinataire (nullable pour messages publics)
      */
     public function destinataire()
     {
         return $this->belongsTo(Utilisateur::class, 'destinataire_id', 'id_utilisateur');
+    }
+
+    /**
+     * Relation : Un message peut être lié à un cours
+     */
+    public function cours()
+    {
+        return $this->belongsTo(Cours::class, 'id_cours', 'id_cours');
     }
 
     /**
@@ -53,19 +68,29 @@ class Message extends Model
     }
 
     /**
-     * Scope : Messages envoyés par un utilisateur
+     * Incrémenter le nombre de vues
      */
-    public function scopeEnvoyesPar($query, $utilisateurId)
+    public function incrementerVues()
     {
-        return $query->where('expediteur_id', $utilisateurId);
+        $this->increment('nombre_vues');
     }
 
     /**
-     * Scope : Messages reçus par un utilisateur
+     * Scope : Messages privés envoyés par un utilisateur
+     */
+    public function scopeEnvoyesPar($query, $utilisateurId)
+    {
+        return $query->where('expediteur_id', $utilisateurId)
+                     ->where('type', 'prive');
+    }
+
+    /**
+     * Scope : Messages privés reçus par un utilisateur
      */
     public function scopeRecusPar($query, $utilisateurId)
     {
-        return $query->where('destinataire_id', $utilisateurId);
+        return $query->where('destinataire_id', $utilisateurId)
+                     ->where('type', 'prive');
     }
 
     /**
@@ -77,16 +102,66 @@ class Message extends Model
     }
 
     /**
+     * Scope : Annonces visibles par un utilisateur
+     */
+    public function scopeAnnoncesVisiblesPar($query, $utilisateur)
+    {
+        return $query->where('type', 'annonce')
+                     ->where(function($q) use ($utilisateur) {
+                         // Annonces pour tous
+                         $q->where('visibilite', 'tous')
+                           // Annonces pour son rôle
+                           ->orWhere('visibilite', $utilisateur->role . 's')
+                           // Annonces de cours auxquels il participe
+                           ->orWhereHas('cours', function($subQ) use ($utilisateur) {
+                               if ($utilisateur->role === 'enseignant') {
+                                   $subQ->where('id_enseignant', $utilisateur->enseignant->id_enseignant ?? null);
+                               } elseif ($utilisateur->role === 'etudiant') {
+                                   // TODO: Ajouter relation cours-étudiants si nécessaire
+                               }
+                           });
+                     })
+                     ->orderBy('est_epingle', 'desc')
+                     ->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Scope : Messages du forum
+     */
+    public function scopeForum($query)
+    {
+        return $query->where('type', 'forum')
+                     ->orderBy('created_at', 'desc');
+    }
+
+    /**
      * Scope : Conversation entre deux utilisateurs
      */
     public function scopeConversation($query, $utilisateur1, $utilisateur2)
     {
-        return $query->where(function($q) use ($utilisateur1, $utilisateur2) {
-            $q->where('expediteur_id', $utilisateur1)
-              ->where('destinataire_id', $utilisateur2);
-        })->orWhere(function($q) use ($utilisateur1, $utilisateur2) {
-            $q->where('expediteur_id', $utilisateur2)
-              ->where('destinataire_id', $utilisateur1);
-        });
+        return $query->where('type', 'prive')
+                     ->where(function($q) use ($utilisateur1, $utilisateur2) {
+                         $q->where('expediteur_id', $utilisateur1)
+                           ->where('destinataire_id', $utilisateur2);
+                     })->orWhere(function($q) use ($utilisateur1, $utilisateur2) {
+                         $q->where('expediteur_id', $utilisateur2)
+                           ->where('destinataire_id', $utilisateur1);
+                     });
+    }
+
+    /**
+     * Vérifier si le message est public
+     */
+    public function estPublic()
+    {
+        return in_array($this->type, ['annonce', 'forum']);
+    }
+
+    /**
+     * Vérifier si le message est privé
+     */
+    public function estPrive()
+    {
+        return $this->type === 'prive';
     }
 }

@@ -10,88 +10,170 @@ use App\Http\Controllers\Api\RessourceMedicaleController;
 use App\Http\Controllers\Api\DonneeSanitaireController;
 use App\Http\Controllers\Api\MessageController;
 
-// 🔹 Routes publiques - Pas besoin d'être connecté
+/*
+|--------------------------------------------------------------------------
+| API Routes - MedCampus Bangui
+|--------------------------------------------------------------------------
+| Système de gestion médicale avec authentification JWT
+| Rôles : admin, enseignant, etudiant
+*/
+
+// ========================================================================
+// 🔓 ROUTES PUBLIQUES - Pas besoin d'être connecté
+// ========================================================================
+
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
-// 🔹 Routes protégées - Il faut être connecté avec JWT
+// ========================================================================
+// 🔐 ROUTES PROTÉGÉES - JWT requis
+// ========================================================================
+
 Route::middleware('auth.jwt')->group(function () {
     
-    // Déconnexion et informations utilisateur
+    // ====================================================================
+    // 👤 AUTHENTIFICATION
+    // ====================================================================
+    
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 
-    // 👨‍💼 ADMIN uniquement
+    // ====================================================================
+    // 👥 ENSEIGNANTS - Liste accessible à tous (pour messagerie)
+    // ====================================================================
+    
+    Route::get('/enseignants', [EnseignantController::class, 'index']);
+    Route::get('/enseignants/{enseignant}/cours', [EnseignantController::class, 'cours']);
+    
+    // ====================================================================
+    // 👨‍🎓 ÉTUDIANTS - Liste accessible à admin + enseignant (pour messagerie)
+    // ====================================================================
+    
+    Route::get('/etudiants', [EtudiantController::class, 'index']);
+    Route::get('/etudiants/{etudiant}/notes', [EtudiantController::class, 'notes']);
+
+    // ====================================================================
+    // 👨‍💼 ADMIN UNIQUEMENT - CRUD Complet
+    // ====================================================================
+    
     Route::middleware('role:admin')->group(function () {
-        Route::apiResource('etudiants', EtudiantController::class);
-        Route::apiResource('enseignants', EnseignantController::class);
         
-        // 🔹 Relations - Notes d'un étudiant
-        Route::get('/etudiants/{etudiant}/notes', [EtudiantController::class, 'notes']);
+        // Enseignants - Création, modification, suppression
+        Route::post('/enseignants', [EnseignantController::class, 'store']);
+        Route::get('/enseignants/{enseignant}', [EnseignantController::class, 'show']);
+        Route::put('/enseignants/{enseignant}', [EnseignantController::class, 'update']);
+        Route::delete('/enseignants/{enseignant}', [EnseignantController::class, 'destroy']);
         
-        // 🔹 Relations - Cours d'un enseignant
-        Route::get('/enseignants/{enseignant}/cours', [EnseignantController::class, 'cours']);
+        // Étudiants - Création, modification, suppression
+        Route::post('/etudiants', [EtudiantController::class, 'store']);
+        Route::get('/etudiants/{etudiant}', [EtudiantController::class, 'show']);
+        Route::put('/etudiants/{etudiant}', [EtudiantController::class, 'update']);
+        Route::delete('/etudiants/{etudiant}', [EtudiantController::class, 'destroy']);
     });
 
-    // 📚 ADMIN ou ENSEIGNANT
+    // ====================================================================
+    // 📚 COURS - Admin + Enseignant
+    // ====================================================================
+    
     Route::middleware('role:admin,enseignant')->group(function () {
         Route::get('/mes-cours', [CoursController::class, 'mesCours']);
         Route::get('/mes-etudiants', [EtudiantController::class, 'mesEtudiants']);
-        Route::get('/mes-notes', [CoursController::class, 'mesNotes']); // 🔹 AJOUTÉ ICI
+        Route::get('/mes-notes', [CoursController::class, 'mesNotes']);
         
         Route::apiResource('cours', CoursController::class);
-        Route::apiResource('notes', NoteController::class); // 🔹 Déplacé ici
-        
-        // 🔹 Relations - Notes d'un cours
         Route::get('/cours/{cour}/notes', [CoursController::class, 'notes']);
     });
 
-    // 👨‍🎓 ETUDIANT uniquement
-    Route::middleware('role:etudiant')->group(function () {
-        Route::get('/mes-informations', [EtudiantController::class, 'show']);
-        Route::get('/mes-notes-etudiant', [NoteController::class, 'mesNotes']); // 🔹 AJOUTÉ
+    // ====================================================================
+    // 📝 NOTES - Admin + Enseignant
+    // ====================================================================
+    
+    Route::middleware('role:admin,enseignant')->group(function () {
+        Route::apiResource('notes', NoteController::class);
     });
 
-    // 📚 Bibliothèque médicale - Ressources accessibles selon les rôles
+    // ====================================================================
+    // 👨‍🎓 ÉTUDIANT - Ses propres informations et notes
+    // ====================================================================
+    
+    Route::middleware('role:etudiant')->group(function () {
+        Route::get('/mes-informations', [EtudiantController::class, 'show']);
+        Route::get('/mes-notes-etudiant', [NoteController::class, 'mesNotes']);
+    });
+
+    // ====================================================================
+    // 📚 BIBLIOTHÈQUE MÉDICALE - Ressources
+    // ====================================================================
+    
     Route::prefix('ressources')->group(function () {
         
-        // Routes accessibles à tous les utilisateurs authentifiés
-        Route::get('/', [RessourceMedicaleController::class, 'index']); // Liste
-        Route::get('/{ressourceMedicale}', [RessourceMedicaleController::class, 'show']); // Détails
-        Route::get('/{ressourceMedicale}/telecharger', [RessourceMedicaleController::class, 'telecharger']); // Télécharger
+        // Accessibles à TOUS les utilisateurs authentifiés
+        Route::get('/', [RessourceMedicaleController::class, 'index']);
+        Route::get('/{ressourceMedicale}', [RessourceMedicaleController::class, 'show']);
+        Route::get('/{ressourceMedicale}/telecharger', [RessourceMedicaleController::class, 'telecharger']);
         
-        // Routes réservées aux admin et enseignants
+        // Réservées aux admin + enseignants
         Route::middleware('role:admin,enseignant')->group(function () {
-            Route::post('/', [RessourceMedicaleController::class, 'store']); // Créer
-            Route::put('/{ressourceMedicale}', [RessourceMedicaleController::class, 'update']); // Modifier
-            Route::delete('/{ressourceMedicale}', [RessourceMedicaleController::class, 'destroy']); // Supprimer
+            Route::post('/', [RessourceMedicaleController::class, 'store']);
+            Route::put('/{ressourceMedicale}', [RessourceMedicaleController::class, 'update']);
+            Route::delete('/{ressourceMedicale}', [RessourceMedicaleController::class, 'destroy']);
         });
     });
 
-    // 🏥 Suivi sanitaire - Données sanitaires accessibles selon les rôles
+    // ====================================================================
+    // 🏥 SUIVI SANITAIRE - Données Sanitaires
+    // ====================================================================
+    
     Route::prefix('donnees-sanitaires')->group(function () {
         
-        // Routes accessibles à tous les utilisateurs authentifiés
-        Route::get('/', [DonneeSanitaireController::class, 'index']); // Liste avec filtres
-        Route::get('/statistiques', [DonneeSanitaireController::class, 'statistiques']); // Statistiques
-        Route::get('/{donneeSanitaire}', [DonneeSanitaireController::class, 'show']); // Détails
+        // Accessibles à TOUS les utilisateurs authentifiés
+        Route::get('/', [DonneeSanitaireController::class, 'index']);
+        Route::get('/statistiques', [DonneeSanitaireController::class, 'statistiques']);
+        Route::get('/{donneeSanitaire}', [DonneeSanitaireController::class, 'show']);
         
         // Création accessible à tous (admin, enseignant, étudiant)
-        Route::post('/', [DonneeSanitaireController::class, 'store']); // Créer
+        Route::post('/', [DonneeSanitaireController::class, 'store']);
         
-        // Modification/Suppression selon permissions
-        Route::put('/{donneeSanitaire}', [DonneeSanitaireController::class, 'update']); // Modifier
-        Route::delete('/{donneeSanitaire}', [DonneeSanitaireController::class, 'destroy']); // Supprimer
+        // Modification/Suppression selon permissions (Policies)
+        Route::put('/{donneeSanitaire}', [DonneeSanitaireController::class, 'update']);
+        Route::delete('/{donneeSanitaire}', [DonneeSanitaireController::class, 'destroy']);
     });
 
-    // 💬 Messagerie - Accessible à tous les utilisateurs authentifiés
+    // ====================================================================
+    // 📧 MESSAGERIE COMPLÈTE - Messages privés, Annonces, Forum
+    // ====================================================================
+    
     Route::prefix('messages')->group(function () {
-        Route::get('/boite-reception', [MessageController::class, 'boiteReception']); // Messages reçus
-        Route::get('/boite-envoi', [MessageController::class, 'boiteEnvoi']); // Messages envoyés
-        Route::get('/non-lus', [MessageController::class, 'nonLus']); // Compteur non lus
-        Route::get('/conversation/{utilisateurId}', [MessageController::class, 'conversation']); // Conversation
-        Route::get('/{message}', [MessageController::class, 'show']); // Détails d'un message
-        Route::post('/', [MessageController::class, 'store']); // Envoyer un message
-        Route::delete('/{message}', [MessageController::class, 'destroy']); // Supprimer
+        
+        // Messages privés
+        Route::get('/boite-reception', [MessageController::class, 'boiteReception']);
+        Route::get('/boite-envoi', [MessageController::class, 'boiteEnvoi']);
+        Route::get('/non-lus', [MessageController::class, 'nonLus']);
+        Route::get('/conversation/{utilisateurId}', [MessageController::class, 'conversation']);
+        
+        // Annonces publiques
+        Route::get('/annonces', [MessageController::class, 'annonces']);
+        
+        // Forum de discussion
+        Route::get('/forum', [MessageController::class, 'forum']);
+        
+        // CRUD Messages
+        Route::get('/{message}', [MessageController::class, 'show']);
+        Route::post('/', [MessageController::class, 'store']);
+        Route::delete('/{message}', [MessageController::class, 'destroy']);
+        
+        // Épingler une annonce (admin uniquement)
+        Route::post('/{message}/toggle-epingle', [MessageController::class, 'toggleEpingle']);
+    });
+
+
+    // 📚 RESSOURCES MÉDICALES
+    Route::prefix('ressources')->middleware('auth:api')->group(function () {
+        Route::get('/', [RessourceMedicaleController::class, 'index']);
+        Route::get('/{ressourceMedicale}', [RessourceMedicaleController::class, 'show']);
+        Route::post('/', [RessourceMedicaleController::class, 'store']);
+        Route::put('/{ressourceMedicale}', [RessourceMedicaleController::class, 'update']);
+        Route::delete('/{ressourceMedicale}', [RessourceMedicaleController::class, 'destroy']);
+        Route::get('/{ressourceMedicale}/telecharger', [RessourceMedicaleController::class, 'telecharger']);
     });
 });

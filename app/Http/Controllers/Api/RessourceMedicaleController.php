@@ -65,6 +65,9 @@ class RessourceMedicaleController extends BaseApiController
         // Autorisation
         $this->authorize('view', $ressourceMedicale);
         
+        // 🆕 INCRÉMENTER LES VUES
+        $ressourceMedicale->incrementerVues();
+        
         $ressourceMedicale->load('utilisateur');
 
         return response()->json([

@@ -10,8 +10,12 @@ class RessourceMedicalePolicy
     /**
      * L'admin peut tout faire
      */
-    public function before(Utilisateur $utilisateur, string $ability): bool|null
+    public function before(?Utilisateur $utilisateur, string $ability): bool|null
     {
+        if (!$utilisateur) {
+            return false;
+        }
+        
         if ($utilisateur->role === 'admin') {
             return true;
         }
@@ -22,8 +26,12 @@ class RessourceMedicalePolicy
     /**
      * Voir la liste des ressources
      */
-    public function viewAny(Utilisateur $utilisateur): bool
+    public function viewAny(?Utilisateur $utilisateur): bool
     {
+        if (!$utilisateur) {
+            return false;
+        }
+        
         // Tous les utilisateurs authentifiés peuvent voir la liste
         return true;
     }
@@ -31,8 +39,12 @@ class RessourceMedicalePolicy
     /**
      * Voir une ressource spécifique
      */
-    public function view(Utilisateur $utilisateur, RessourceMedicale $ressourceMedicale): bool
+    public function view(?Utilisateur $utilisateur, RessourceMedicale $ressourceMedicale): bool
     {
+        if (!$utilisateur) {
+            return false;
+        }
+        
         // Si la ressource est publique, tout le monde peut la voir
         if ($ressourceMedicale->est_public) {
             return true;
@@ -45,8 +57,12 @@ class RessourceMedicalePolicy
     /**
      * Créer une ressource
      */
-    public function create(Utilisateur $utilisateur): bool
+    public function create(?Utilisateur $utilisateur): bool
     {
+        if (!$utilisateur) {
+            return false;
+        }
+        
         // Admin et enseignant peuvent ajouter des ressources
         return in_array($utilisateur->role, ['admin', 'enseignant']);
     }
@@ -54,8 +70,12 @@ class RessourceMedicalePolicy
     /**
      * Modifier une ressource
      */
-    public function update(Utilisateur $utilisateur, RessourceMedicale $ressourceMedicale): bool
+    public function update(?Utilisateur $utilisateur, RessourceMedicale $ressourceMedicale): bool
     {
+        if (!$utilisateur) {
+            return false;
+        }
+        
         // Admin peut modifier n'importe quelle ressource (géré par before)
         
         // Un enseignant peut modifier seulement ses propres ressources
@@ -69,8 +89,12 @@ class RessourceMedicalePolicy
     /**
      * Supprimer une ressource
      */
-    public function delete(Utilisateur $utilisateur, RessourceMedicale $ressourceMedicale): bool
+    public function delete(?Utilisateur $utilisateur, RessourceMedicale $ressourceMedicale): bool
     {
+        if (!$utilisateur) {
+            return false;
+        }
+        
         // Admin peut supprimer n'importe quelle ressource (géré par before)
         
         // Un enseignant peut supprimer seulement ses propres ressources

@@ -10,8 +10,12 @@ class CoursPolicy
     /**
      * L'admin peut tout faire
      */
-    public function before(Utilisateur $utilisateur, string $ability): bool|null
+    public function before(?Utilisateur $utilisateur, string $ability): bool|null
     {
+        if (!$utilisateur) {
+            return false;
+        }
+        
         if ($utilisateur->role === 'admin') {
             return true;
         }
@@ -22,17 +26,25 @@ class CoursPolicy
     /**
      * Voir la liste des cours
      */
-    public function viewAny(Utilisateur $utilisateur): bool
+    public function viewAny(?Utilisateur $utilisateur): bool
     {
-        // Admin et enseignant peuvent voir la liste
+        if (!$utilisateur) {
+            return false;
+        }
+        
+        // Admin, enseignant et étudiant peuvent voir la liste
         return in_array($utilisateur->role, ['admin', 'enseignant', 'etudiant']);
     }
 
     /**
      * Voir un cours spécifique
      */
-    public function view(Utilisateur $utilisateur, Cours $cours): bool
+    public function view(?Utilisateur $utilisateur, Cours $cours): bool
     {
+        if (!$utilisateur) {
+            return false;
+        }
+        
         // Tous les rôles peuvent voir les détails d'un cours
         return true;
     }
@@ -40,20 +52,27 @@ class CoursPolicy
     /**
      * Créer un cours
      */
-    public function create(Utilisateur $utilisateur): bool
+    public function create(?Utilisateur $utilisateur): bool
     {
-        // Admin et enseignant peuvent créer (géré aussi par before pour admin)
+        if (!$utilisateur) {
+            return false;
+        }
+        
+        // Admin et enseignant peuvent créer (admin géré par before)
         return $utilisateur->role === 'enseignant';
     }
 
     /**
      * Modifier un cours
      */
-    public function update(Utilisateur $utilisateur, Cours $cours): bool
+    public function update(?Utilisateur $utilisateur, Cours $cours): bool
     {
+        if (!$utilisateur) {
+            return false;
+        }
+        
         // L'enseignant peut modifier seulement ses propres cours
         if ($utilisateur->role === 'enseignant') {
-            // Trouver l'enseignant correspondant à cet utilisateur
             $enseignant = \App\Models\Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
             
             if ($enseignant) {
@@ -67,8 +86,12 @@ class CoursPolicy
     /**
      * Supprimer un cours
      */
-    public function delete(Utilisateur $utilisateur, Cours $cours): bool
+    public function delete(?Utilisateur $utilisateur, Cours $cours): bool
     {
+        if (!$utilisateur) {
+            return false;
+        }
+        
         // L'enseignant peut supprimer seulement ses propres cours
         if ($utilisateur->role === 'enseignant') {
             $enseignant = \App\Models\Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();

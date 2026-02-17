@@ -52,5 +52,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(RessourceMedicale::class, RessourceMedicalePolicy::class);  // 🔹 AJOUT DE CETTE LIGNE
         Gate::policy(DonneeSanitaire::class, DonneeSanitairePolicy::class);  // 🔹 AJOUT DE CETTE LIGNE
         Gate::policy(Message::class, MessagePolicy::class);  // 🔹 AJOUT DE CETTE LIGNE
+        Gate::policy(RessourceMedicale::class, RessourceMedicalePolicy::class);
+        Gate::policy(DonneeSanitaire::class, DonneeSanitairePolicy::class);
     }
 }
