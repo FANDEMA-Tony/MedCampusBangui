@@ -79,8 +79,10 @@ class DonneeSanitaireController extends BaseApiController
     /**
      * Afficher une donnée sanitaire spécifique
      */
-    public function show(DonneeSanitaire $donneeSanitaire)
+    public function show($id)
     {
+        $donneeSanitaire = DonneeSanitaire::findOrFail($id);
+        
         // Autorisation
         $this->authorize('view', $donneeSanitaire);
         
@@ -177,8 +179,10 @@ class DonneeSanitaireController extends BaseApiController
     /**
      * Mettre à jour une donnée sanitaire
      */
-    public function update(Request $request, DonneeSanitaire $donneeSanitaire)
+    public function update(Request $request, $id)
     {
+        $donneeSanitaire = DonneeSanitaire::findOrFail($id);
+        
         // Autorisation
         $this->authorize('update', $donneeSanitaire);
         
@@ -229,7 +233,7 @@ class DonneeSanitaireController extends BaseApiController
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Une erreur est survenue lors de la mise à jour.'
+                'message' => 'Une erreur est survenue lors de la mise à jour.',
             ], 500);
         }
     }
@@ -237,8 +241,10 @@ class DonneeSanitaireController extends BaseApiController
     /**
      * Supprimer une donnée sanitaire
      */
-    public function destroy(DonneeSanitaire $donneeSanitaire)
+    public function destroy($id)
     {
+        $donneeSanitaire = DonneeSanitaire::findOrFail($id);
+        
         // Autorisation
         $this->authorize('delete', $donneeSanitaire);
         

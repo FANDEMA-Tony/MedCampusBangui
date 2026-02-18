@@ -72,7 +72,7 @@ public function update(?Utilisateur $utilisateur, DonneeSanitaire $donneeSanitai
     }
     
     // ✅ CORRECTION : user.id au lieu de user.id_utilisateur
-    return $donneeSanitaire->collecte_par === $utilisateur->id;
+    return $donneeSanitaire->collecte_par === $utilisateur->id_utilisateur;
 }
 
 /**
@@ -85,7 +85,7 @@ public function delete(?Utilisateur $utilisateur, DonneeSanitaire $donneeSanitai
     }
     
     // ✅ CORRECTION : user.id au lieu de user.id_utilisateur
-    return $donneeSanitaire->collecte_par === $utilisateur->id;
+     return $donneeSanitaire->collecte_par === $utilisateur->id_utilisateur;
 }
 
     /**

@@ -20,7 +20,8 @@ class Message extends Model
         'est_lu',
         'lu_a',
         'est_epingle',
-        'nombre_vues'
+        'nombre_vues',
+        'nombre_likes', // 🆕 AJOUTÉ
     ];
 
     protected $casts = [
@@ -163,5 +164,39 @@ class Message extends Model
     public function estPrive()
     {
         return $this->type === 'prive';
+    }
+
+        /**
+     * Incrémenter le nombre de likes
+     */
+    public function incrementerLikes()
+    {
+        $this->increment('nombre_likes');
+    }
+
+        /**
+     * Relation : Les utilisateurs qui ont liké ce message
+     */
+    public function likes()
+    {
+        return $this->hasMany(MessageLike::class, 'id_message', 'id_message');
+    }
+
+    /**
+     * Vérifier si un utilisateur a déjà liké ce message
+     */
+    public function isLikedBy($userId)
+    {
+        return $this->likes()->where('id_utilisateur', $userId)->exists();
+    }
+
+        /**
+     * Relation : Les réponses à ce message
+     */
+    public function reponses()
+    {
+        return $this->hasMany(ReponseMessage::class, 'id_message', 'id_message')
+                    ->with('utilisateur')
+                    ->orderBy('created_at', 'asc');
     }
 }

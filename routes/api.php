@@ -129,14 +129,14 @@ Route::middleware('auth.jwt')->group(function () {
         // Accessibles à TOUS les utilisateurs authentifiés
         Route::get('/', [DonneeSanitaireController::class, 'index']);
         Route::get('/statistiques', [DonneeSanitaireController::class, 'statistiques']);
-        Route::get('/{donneeSanitaire}', [DonneeSanitaireController::class, 'show']);
+        Route::get('/{id}', [DonneeSanitaireController::class, 'show']);
         
         // Création accessible à tous (admin, enseignant, étudiant)
         Route::post('/', [DonneeSanitaireController::class, 'store']);
         
         // Modification/Suppression selon permissions (Policies)
-        Route::put('/{donneeSanitaire}', [DonneeSanitaireController::class, 'update']);
-        Route::delete('/{donneeSanitaire}', [DonneeSanitaireController::class, 'destroy']);
+        Route::put('/{id}', [DonneeSanitaireController::class, 'update']);
+        Route::delete('/{id}', [DonneeSanitaireController::class, 'destroy']);
     });
 
     // ====================================================================
@@ -164,6 +164,13 @@ Route::middleware('auth.jwt')->group(function () {
         
         // Épingler une annonce (admin uniquement)
         Route::post('/{message}/toggle-epingle', [MessageController::class, 'toggleEpingle']);
+
+        // Liker un message
+        Route::post('/{message}/like', [MessageController::class, 'like']);
+
+        // Réponses à un message
+        Route::get('/{message}/reponses', [MessageController::class, 'reponses']);
+        Route::post('/{message}/repondre', [MessageController::class, 'repondre']);
     });
 
 

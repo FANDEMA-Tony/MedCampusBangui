@@ -6,7 +6,8 @@ use App\Models\Message;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
-
+use App\Models\MessageLike;
+use App\Models\ReponseMessage;
 class MessageController extends BaseApiController
 {
     /**
@@ -151,25 +152,56 @@ class MessageController extends BaseApiController
      */
     public function store(Request $request)
     {
-        $this->authorize('create', Message::class);
-        
-        $validator = Validator::make($request->all(), [
+        $utilisateur = Auth::user();
+        $role = $utilisateur->role;
+        $type = $request->type ?? 'prive';
+
+        // ✅ VALIDATION DYNAMIQUE SELON LE TYPE
+        $rules = [
             'type' => 'required|in:prive,annonce,forum',
-            'destinataire_id' => 'required_if:type,prive|exists:utilisateurs,id_utilisateur',
-            'visibilite' => 'required_if:type,annonce|in:tous,enseignants,etudiants,cours',
-            'id_cours' => 'nullable|exists:cours,id_cours',
-            'sujet' => 'nullable|string|max:255',
-            'contenu' => 'required|string'
-        ], [
+            'contenu' => 'required|string',
+        ];
+
+        // ✅ Validation spécifique MESSAGE PRIVÉ
+        if ($type === 'prive') {
+            $rules['destinataire_id'] = 'required|exists:utilisateurs,id_utilisateur';
+            $rules['sujet'] = 'nullable|string|max:255';
+        }
+
+        // ✅ Validation spécifique ANNONCE
+        if ($type === 'annonce') {
+            $rules['visibilite'] = 'required|in:tous,enseignants,etudiants,cours';
+            $rules['sujet'] = 'required|string|max:255';
+            $rules['id_cours'] = 'nullable|exists:cours,id_cours';
+            
+            // Vérifier que seul admin ou enseignant peut créer des annonces
+            if (!in_array($role, ['admin', 'enseignant'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Seuls les administrateurs et enseignants peuvent créer des annonces.'
+                ], 403);
+            }
+        }
+
+        // ✅ Validation spécifique FORUM
+        if ($type === 'forum') {
+            $rules['sujet'] = 'required|string|max:255';
+        }
+
+        // ✅ Messages de validation en français
+        $messages = [
             'type.required' => 'Le type de message est obligatoire.',
-            'type.in' => 'Type de message invalide.',
-            'destinataire_id.required_if' => 'Le destinataire est obligatoire pour un message privé.',
-            'destinataire_id.exists' => 'Ce destinataire n\'existe pas.',
-            'visibilite.required_if' => 'La visibilité est obligatoire pour une annonce.',
-            'visibilite.in' => 'Visibilité invalide.',
-            'id_cours.exists' => 'Ce cours n\'existe pas.',
-            'contenu.required' => 'Le contenu du message est obligatoire.'
-        ]);
+            'type.in' => 'Le type de message doit être : prive, annonce ou forum.',
+            'destinataire_id.required' => 'Le destinataire est obligatoire pour les messages privés.',
+            'destinataire_id.exists' => 'Le destinataire sélectionné n\'existe pas.',
+            'visibilite.required' => 'La visibilité est obligatoire pour les annonces.',
+            'visibilite.in' => 'La visibilité doit être : tous, enseignants, etudiants ou cours.',
+            'contenu.required' => 'Le contenu du message est obligatoire.',
+            'sujet.required' => 'Le sujet est obligatoire.',
+            'id_cours.exists' => 'Le cours sélectionné n\'existe pas.',
+        ];
+
+        $validator = Validator::make($request->all(), $rules, $messages);
 
         if ($validator->fails()) {
             return response()->json([
@@ -179,51 +211,33 @@ class MessageController extends BaseApiController
             ], 422);
         }
 
-        // Vérifications supplémentaires
-        $type = $request->type;
-        
-        // Pour messages privés : pas d'auto-message
-        if ($type === 'prive' && $request->destinataire_id == Auth::id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Vous ne pouvez pas vous envoyer un message à vous-même.'
-            ], 422);
-        }
-
-        // Pour annonces : vérifier rôle
-        if ($type === 'annonce') {
-            $utilisateur = Auth::user();
-            if (!in_array($utilisateur->role, ['admin', 'enseignant'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Seuls les administrateurs et enseignants peuvent créer des annonces.'
-                ], 403);
-            }
-        }
-
         try {
+            // ✅ Créer le message
             $message = Message::create([
-                'expediteur_id' => Auth::id(),
-                'destinataire_id' => $request->destinataire_id ?? null,
+                'expediteur_id' => $utilisateur->id_utilisateur,
+                'destinataire_id' => $type === 'prive' ? $request->destinataire_id : null,
                 'type' => $type,
-                'visibilite' => $request->visibilite ?? null,
-                'id_cours' => $request->id_cours ?? null,
+                'visibilite' => $type === 'annonce' ? $request->visibilite : null,
+                'id_cours' => ($type === 'annonce' && $request->visibilite === 'cours') ? $request->id_cours : null,
                 'sujet' => $request->sujet,
-                'contenu' => $request->contenu
+                'contenu' => $request->contenu,
+                'est_lu' => false,
             ]);
 
-            $message->load(['expediteur', 'destinataire', 'cours']);
+            $message->load('expediteur', 'destinataire', 'cours');
 
             return response()->json([
                 'success' => true,
-                'message' => 'Message créé avec succès',
+                'message' => $type === 'prive' ? 'Message envoyé avec succès' : 
+                            ($type === 'annonce' ? 'Annonce publiée avec succès' : 
+                            'Message posté avec succès'),
                 'data' => $message
             ], 201);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Une erreur est survenue lors de la création du message.',
+                'message' => 'Une erreur est survenue lors de l\'envoi du message.',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -300,5 +314,111 @@ class MessageController extends BaseApiController
             'message' => $message->est_epingle ? 'Annonce épinglée avec succès' : 'Annonce désépinglée avec succès',
             'data' => $message
         ], 200);
+    }
+    /**
+     * 🆕 Liker/Unliker un message (Forum/Annonce)
+     */
+    public function like(Message $message)
+    {
+        $this->authorize('view', $message);
+        
+        if (!$message->estPublic()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Seuls les messages publics peuvent être likés.'
+            ], 400);
+        }
+
+        $userId = Auth::id();
+
+        // ✅ Vérifier si l'utilisateur a déjà liké
+        $existingLike = MessageLike::where('id_message', $message->id_message)
+                                    ->where('id_utilisateur', $userId)
+                                    ->first();
+
+        if ($existingLike) {
+            // ✅ UNLIKER (retirer le like)
+            $existingLike->delete();
+            $message->decrement('nombre_likes');
+            $liked = false;
+        } else {
+            // ✅ LIKER
+            MessageLike::create([
+                'id_message' => $message->id_message,
+                'id_utilisateur' => $userId,
+            ]);
+            $message->increment('nombre_likes');
+            $liked = true;
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $liked ? 'Like ajouté !' : 'Like retiré !',
+            'data' => [
+                'nombre_likes' => $message->nombre_likes,
+                'liked' => $liked
+            ]
+        ], 200);
+    }
+
+    /**
+ * 🆕 Liste des réponses d'un message
+ */
+public function reponses(Message $message)
+{
+    $this->authorize('view', $message);
+    
+    $reponses = $message->reponses()->with('utilisateur')->get();
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Réponses récupérées avec succès',
+        'data' => $reponses
+    ], 200);
+}
+
+    /**
+     * 🆕 Ajouter une réponse à un message
+     */
+    public function repondre(Request $request, Message $message)
+    {
+        $this->authorize('view', $message);
+        
+        $validator = Validator::make($request->all(), [
+            'contenu' => 'required|string',
+        ], [
+            'contenu.required' => 'Le contenu de la réponse est obligatoire.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $reponse = ReponseMessage::create([
+                'id_message' => $message->id_message,
+                'id_utilisateur' => Auth::id(),
+                'contenu' => $request->contenu,
+            ]);
+
+            $reponse->load('utilisateur');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Réponse ajoutée avec succès',
+                'data' => $reponse
+            ], 201);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Une erreur est survenue.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }
