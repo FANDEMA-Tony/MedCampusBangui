@@ -137,6 +137,9 @@ Route::middleware('auth.jwt')->group(function () {
         // Modification/Suppression selon permissions (Policies)
         Route::put('/{id}', [DonneeSanitaireController::class, 'update']);
         Route::delete('/{id}', [DonneeSanitaireController::class, 'destroy']);
+         
+        // 🆕 Recherche par code
+        Route::get('/rechercher-code', [DonneeSanitaireController::class, 'rechercherParCode']);
     });
 
     // ====================================================================

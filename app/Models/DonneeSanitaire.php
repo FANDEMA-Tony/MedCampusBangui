@@ -12,6 +12,9 @@ class DonneeSanitaire extends Model
 
     protected $fillable = [
         'code_patient',
+        'nom_patient',        // 🆕 AJOUTÉ
+        'prenom_patient',     // 🆕 AJOUTÉ
+        'telephone_patient',  // 🆕 AJOUTÉ
         'sexe',
         'age',
         'tranche_age',
@@ -52,18 +55,24 @@ class DonneeSanitaire extends Model
         parent::boot();
 
         static::creating(function ($donnee) {
-            // Générer un code patient unique si non fourni
+            // Générer code patient unique
             if (empty($donnee->code_patient)) {
                 $donnee->code_patient = 'PAT-' . strtoupper(Str::random(10));
             }
 
-            // Calculer automatiquement la tranche d'âge si l'âge est fourni
+            // Calculer tranche âge
             if ($donnee->age && empty($donnee->tranche_age)) {
                 $donnee->tranche_age = self::calculerTrancheAge($donnee->age);
             }
 
-            // Forcer l'anonymisation
-            $donnee->est_anonyme = true;
+            // ✅ LOGIQUE ANONYMISATION
+            // Si nom/prénom fournis → NON anonyme
+            // Si vides → Anonyme
+            if (empty($donnee->nom_patient) && empty($donnee->prenom_patient)) {
+                $donnee->est_anonyme = true;
+            } else {
+                $donnee->est_anonyme = false;
+            }
         });
     }
 
@@ -179,5 +188,17 @@ class DonneeSanitaire extends Model
         }
 
         return null;
+    }
+
+    /**
+     * 🆕 Accessor - Nom complet patient
+     */
+    public function getNomCompletAttribute()
+    {
+        if ($this->est_anonyme) {
+            return "Patient Anonyme ({$this->code_patient})";
+        }
+        
+        return trim("{$this->prenom_patient} {$this->nom_patient}") ?: $this->code_patient;
     }
 }

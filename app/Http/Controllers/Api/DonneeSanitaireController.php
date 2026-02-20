@@ -326,4 +326,48 @@ class DonneeSanitaireController extends BaseApiController
             ], 500);
         }
     }
+
+        /**
+     * 🆕 Rechercher un patient par code
+     */
+    public function rechercherParCode(Request $request)
+    {
+        $this->authorize('viewAny', DonneeSanitaire::class);
+        
+        $validator = Validator::make($request->all(), [
+            'code' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $donnee = DonneeSanitaire::with('collecteur')
+                ->where('code_patient', 'like', "%{$request->code}%")
+                ->first();
+
+            if (!$donnee) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Aucun patient trouvé avec ce code'
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Patient trouvé',
+                'data' => $donnee
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la recherche'
+            ], 500);
+        }
+    }
 }
