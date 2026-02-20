@@ -50,8 +50,8 @@ class RessourceMedicalePolicy
             return true;
         }
 
-        // Sinon, seul l'admin peut voir les ressources privées
-        return $utilisateur->role === 'admin';
+        // Sinon, seul l'admin ou le créateur peuvent voir les ressources privées
+        return $utilisateur->role === 'admin' || $ressourceMedicale->ajoute_par === $utilisateur->id_utilisateur;
     }
 
     /**

@@ -7,18 +7,63 @@ use Illuminate\Http\Request;
 
 class EtudiantController extends BaseApiController
 {
+    /**
+     * Liste TOUS les étudiants (pagination désactivée pour groupement frontend)
+     */
     public function index()
     {
-        // ✅ Autorisation
         $this->authorize('viewAny', Etudiant::class);
         
-        $etudiants = Etudiant::paginate(10);
+        // ✅ Récupérer TOUS les étudiants (pas de pagination)
+        // Le groupement se fera côté frontend
+        $etudiants = Etudiant::orderBy('filiere')
+                             ->orderBy('niveau')
+                             ->orderBy('nom')
+                             ->get();
+        
         return $this->successResponse($etudiants, "Liste des étudiants récupérée avec succès");
+    }
+
+    /**
+     * 🆕 Récupérer étudiants groupés par filière et niveau
+     */
+    public function indexGrouped()
+    {
+        $this->authorize('viewAny', Etudiant::class);
+        
+        $etudiants = Etudiant::orderBy('filiere')
+                             ->orderBy('niveau')
+                             ->orderBy('nom')
+                             ->get();
+        
+        // Grouper par filière
+        $grouped = $etudiants->groupBy('filiere')->map(function ($filiereEtudiants, $filiere) {
+            // Sous-grouper par niveau
+            $byNiveau = $filiereEtudiants->groupBy('niveau')->map(function ($niveauEtudiants, $niveau) {
+                return [
+                    'niveau' => $niveau ?: 'Non spécifié',
+                    'count' => $niveauEtudiants->count(),
+                    'etudiants' => $niveauEtudiants->values()
+                ];
+            })->sortBy('niveau')->values();
+            
+            return [
+                'filiere' => $filiere ?: 'Non spécifiée',
+                'total' => $filiereEtudiants->count(),
+                'niveaux' => $byNiveau
+            ];
+        })->sortBy('filiere')->values();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Étudiants groupés récupérés avec succès',
+            'data' => $grouped,
+            'total' => $etudiants->count()
+        ], 200);
     }
 
     public function store(Request $request)
     {
-        // ✅ Autorisation
         $this->authorize('create', Etudiant::class);
         
         try {
@@ -26,13 +71,14 @@ class EtudiantController extends BaseApiController
                 'nom' => 'required|string|max:255',
                 'prenom' => 'required|string|max:255',
                 'email' => 'required|email|unique:etudiants,email',
-                'mot_de_passe' => 'required|string|min:8', // 🆕 AJOUTÉ
+                'mot_de_passe' => 'required|string|min:8',
                 'date_naissance' => 'required|date',
                 'filiere' => 'nullable|string|max:255',
+                'niveau' => 'required|in:L1,L2,L3,M1,M2,Doctorat',
                 'statut' => 'nullable|in:actif,suspendu,diplome'
             ]);
 
-            // 🆕 1. Créer l'utilisateur d'abord (pour la connexion)
+            // Créer l'utilisateur
             $utilisateur = \App\Models\Utilisateur::create([
                 'nom' => $data['nom'],
                 'prenom' => $data['prenom'],
@@ -41,7 +87,7 @@ class EtudiantController extends BaseApiController
                 'role' => 'etudiant',
             ]);
 
-            // 🆕 2. Créer l'étudiant lié
+            // Créer l'étudiant
             $etudiant = Etudiant::create([
                 'id_utilisateur' => $utilisateur->id_utilisateur,
                 'nom' => $data['nom'],
@@ -50,6 +96,7 @@ class EtudiantController extends BaseApiController
                 'matricule' => 'ETU' . str_pad($utilisateur->id_utilisateur, 6, '0', STR_PAD_LEFT),
                 'date_naissance' => $data['date_naissance'],
                 'filiere' => $data['filiere'] ?? null,
+                'niveau' => $data['niveau'],
                 'statut' => $data['statut'] ?? 'actif',
             ]);
 
@@ -68,15 +115,12 @@ class EtudiantController extends BaseApiController
 
     public function show(Etudiant $etudiant)
     {
-        // ✅ Autorisation
         $this->authorize('view', $etudiant);
-        
         return $this->successResponse($etudiant->load('notes'), "Étudiant récupéré avec succès");
     }
 
     public function update(Request $request, Etudiant $etudiant)
     {
-        // ✅ Autorisation
         $this->authorize('update', $etudiant);
         
         try {
@@ -84,13 +128,14 @@ class EtudiantController extends BaseApiController
                 'nom' => 'sometimes|string|max:255',
                 'prenom' => 'sometimes|string|max:255',
                 'email' => 'sometimes|email|unique:etudiants,email,' . $etudiant->id_etudiant . ',id_etudiant',
-                'mot_de_passe' => 'sometimes|nullable|string|min:8', // 🆕 AJOUTÉ
+                'mot_de_passe' => 'sometimes|nullable|string|min:8',
                 'date_naissance' => 'sometimes|date',
                 'filiere' => 'sometimes|nullable|string|max:255',
+                'niveau' => 'sometimes|in:L1,L2,L3,M1,M2,Doctorat',
                 'statut' => 'sometimes|in:actif,suspendu,diplome'
             ]);
 
-            // 🆕 Mettre à jour l'utilisateur si mot de passe fourni
+            // Mettre à jour mot de passe utilisateur si fourni
             if (isset($data['mot_de_passe']) && !empty($data['mot_de_passe'])) {
                 $utilisateur = \App\Models\Utilisateur::where('id_utilisateur', $etudiant->id_utilisateur)->first();
                 if ($utilisateur) {
@@ -117,19 +162,13 @@ class EtudiantController extends BaseApiController
 
     public function destroy(Etudiant $etudiant)
     {
-        // ✅ Autorisation
         $this->authorize('delete', $etudiant);
-        
         $etudiant->delete();
         return $this->successResponse(null, "Étudiant supprimé avec succès", 204);
     }
 
-    /**
-     * Récupérer toutes les notes d'un étudiant
-     */
     public function notes(Etudiant $etudiant)
     {
-        // ✅ Autorisation
         $this->authorize('view', $etudiant);
         
         try {
@@ -157,9 +196,6 @@ class EtudiantController extends BaseApiController
         }
     }
 
-    /**
-     * Liste des étudiants accessibles à l'enseignant connecté
-     */
     public function mesEtudiants()
     {
         try {

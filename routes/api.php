@@ -50,6 +50,7 @@ Route::middleware('auth.jwt')->group(function () {
     // ====================================================================
     
     Route::get('/etudiants', [EtudiantController::class, 'index']);
+    Route::get('/etudiants-grouped', [EtudiantController::class, 'indexGrouped']); // 🆕 NOUVELLE ROUTE
     Route::get('/etudiants/{etudiant}/notes', [EtudiantController::class, 'notes']);
 
     // ====================================================================
@@ -106,11 +107,17 @@ Route::middleware('auth.jwt')->group(function () {
     // ====================================================================
     
     Route::prefix('ressources')->group(function () {
-        
+    
         // Accessibles à TOUS les utilisateurs authentifiés
         Route::get('/', [RessourceMedicaleController::class, 'index']);
         Route::get('/{ressourceMedicale}', [RessourceMedicaleController::class, 'show']);
         Route::get('/{ressourceMedicale}/telecharger', [RessourceMedicaleController::class, 'telecharger']);
+        
+        // 🆕 LIKE - Accessible à tous
+        Route::post('/{ressourceMedicale}/like', [RessourceMedicaleController::class, 'like']);
+        
+        // 🆕 PRÉVISUALISATION - Accessible à tous
+        Route::get('/{ressourceMedicale}/previsualiser', [RessourceMedicaleController::class, 'previsualiser']);
         
         // Réservées aux admin + enseignants
         Route::middleware('role:admin,enseignant')->group(function () {

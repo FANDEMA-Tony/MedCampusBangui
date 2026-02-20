@@ -15,6 +15,7 @@ class Etudiant extends Model
         'email',
         'date_naissance',
         'filiere',
+        'niveau', // 🆕 AJOUTÉ
         'matricule',
         'statut',
         'id_utilisateur', // 🔹 AJOUT

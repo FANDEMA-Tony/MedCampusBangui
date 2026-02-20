@@ -174,7 +174,6 @@ class MessageController extends BaseApiController
             $rules['sujet'] = 'required|string|max:255';
             $rules['id_cours'] = 'nullable|exists:cours,id_cours';
             
-            // Vérifier que seul admin ou enseignant peut créer des annonces
             if (!in_array($role, ['admin', 'enseignant'])) {
                 return response()->json([
                     'success' => false,
@@ -188,7 +187,6 @@ class MessageController extends BaseApiController
             $rules['sujet'] = 'required|string|max:255';
         }
 
-        // ✅ Messages de validation en français
         $messages = [
             'type.required' => 'Le type de message est obligatoire.',
             'type.in' => 'Le type de message doit être : prive, annonce ou forum.',
@@ -209,6 +207,29 @@ class MessageController extends BaseApiController
                 'message' => 'Erreur de validation',
                 'errors' => $validator->errors()
             ], 422);
+        }
+
+        // 🆕 VÉRIFICATION HIÉRARCHIQUE (Messages privés uniquement)
+        if ($type === 'prive') {
+            $destinataire = \App\Models\Utilisateur::find($request->destinataire_id);
+            
+            if (!$destinataire) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Destinataire introuvable.'
+                ], 404);
+            }
+
+            // ✅ CORRECTION FINALE : Vérification manuelle de la policy
+            $policy = app(\App\Policies\MessagePolicy::class);
+            $autorise = $policy->sendMessageTo($utilisateur, $destinataire);
+            
+            if (!$autorise) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous ne pouvez pas envoyer de message à cet utilisateur. Les étudiants peuvent uniquement envoyer des messages aux enseignants.'
+                ], 403);
+            }
         }
 
         try {

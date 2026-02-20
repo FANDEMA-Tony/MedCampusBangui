@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Models\RessourceMedicale;
+use App\Models\RessourceLike;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
@@ -19,7 +20,7 @@ class RessourceMedicaleController extends BaseApiController
         // Autorisation
         $this->authorize('viewAny', RessourceMedicale::class);
         
-        $query = RessourceMedicale::with('utilisateur');
+        $query = RessourceMedicale::with(['utilisateur', 'likes']);
 
         // Filtre par type
         if ($request->has('type')) {
@@ -48,6 +49,13 @@ class RessourceMedicaleController extends BaseApiController
 
         $ressources = $query->orderBy('created_at', 'desc')->paginate(15);
 
+        // 🆕 Ajouter le statut "liké par l'utilisateur actuel" à chaque ressource
+        $ressources->getCollection()->transform(function ($ressource) {
+            $ressource->est_like_par_moi = $ressource->estLikePar(Auth::id());
+            $ressource->nombre_likes = $ressource->nombre_likes;
+            return $ressource;
+        });
+
         return response()->json([
             'success' => true,
             'message' => 'Liste des ressources récupérée avec succès',
@@ -65,10 +73,14 @@ class RessourceMedicaleController extends BaseApiController
         // Autorisation
         $this->authorize('view', $ressourceMedicale);
         
-        // 🆕 INCRÉMENTER LES VUES
+        // ✅ INCRÉMENTER LES VUES
         $ressourceMedicale->incrementerVues();
         
-        $ressourceMedicale->load('utilisateur');
+        $ressourceMedicale->load(['utilisateur', 'likes']);
+
+        // 🆕 Ajouter infos likes
+        $ressourceMedicale->est_like_par_moi = $ressourceMedicale->estLikePar(Auth::id());
+        $ressourceMedicale->nombre_likes = $ressourceMedicale->nombre_likes;
 
         return response()->json([
             'success' => true,
@@ -238,7 +250,7 @@ class RessourceMedicaleController extends BaseApiController
         $this->authorize('view', $ressourceMedicale);
         
         try {
-            // Incrémenter le compteur de téléchargements
+            // ✅ Incrémenter le compteur de téléchargements
             $ressourceMedicale->incrementerTelechargements();
 
             // Retourner le fichier en téléchargement
@@ -252,6 +264,104 @@ class RessourceMedicaleController extends BaseApiController
                 'success' => false,
                 'message' => 'Fichier introuvable ou erreur lors du téléchargement.'
             ], 404);
+        }
+    }
+
+    /**
+     * 🆕 Liker/Unliker une ressource
+     */
+    public function like(RessourceMedicale $ressourceMedicale)
+    {
+        // Autorisation (tous les utilisateurs authentifiés peuvent liker)
+        $this->authorize('view', $ressourceMedicale);
+        
+        try {
+            $utilisateurId = Auth::id();
+            
+            // Vérifier si l'utilisateur a déjà liké
+            $like = RessourceLike::where('ressource_id', $ressourceMedicale->id_ressource)
+                                 ->where('utilisateur_id', $utilisateurId)
+                                 ->first();
+            
+            if ($like) {
+                // Unliker
+                $like->delete();
+                $message = 'Like retiré';
+                $liked = false;
+            } else {
+                // Liker
+                RessourceLike::create([
+                    'ressource_id' => $ressourceMedicale->id_ressource,
+                    'utilisateur_id' => $utilisateurId,
+                ]);
+                $message = 'Ressource likée';
+                $liked = true;
+            }
+
+            // Recharger les likes
+            $ressourceMedicale->load('likes');
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => [
+                    'liked' => $liked,
+                    'nombre_likes' => $ressourceMedicale->nombre_likes,
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Une erreur est survenue.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 🆕 Prévisualiser une ressource (streaming vidéo/PDF)
+     */
+    public function previsualiser(RessourceMedicale $ressourceMedicale)
+    {
+        // Autorisation
+        $this->authorize('view', $ressourceMedicale);
+        
+        try {
+            $chemin = storage_path('app/public/' . $ressourceMedicale->chemin_fichier);
+            
+            if (!file_exists($chemin)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Fichier introuvable'
+                ], 404);
+            }
+
+            // Déterminer le type MIME
+            $mimeTypes = [
+                'pdf' => 'application/pdf',
+                'mp4' => 'video/mp4',
+                'webm' => 'video/webm',
+                'ogg' => 'video/ogg',
+                'jpg' => 'image/jpeg',
+                'jpeg' => 'image/jpeg',
+                'png' => 'image/png',
+                'gif' => 'image/gif',
+            ];
+
+            $extension = strtolower($ressourceMedicale->type_fichier);
+            $mimeType = $mimeTypes[$extension] ?? 'application/octet-stream';
+
+            return response()->file($chemin, [
+                'Content-Type' => $mimeType,
+                'Content-Disposition' => 'inline; filename="' . $ressourceMedicale->nom_fichier . '"'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la prévisualisation'
+            ], 500);
         }
     }
 }

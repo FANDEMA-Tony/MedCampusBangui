@@ -12,7 +12,6 @@ class MessagePolicy
      */
     public function before(?Utilisateur $utilisateur, string $ability): bool|null
     {
-        // ✅ VÉRIFICATION : Si pas d'utilisateur, refuser
         if (!$utilisateur) {
             return false;
         }
@@ -29,26 +28,28 @@ class MessagePolicy
      */
     public function viewAny(?Utilisateur $utilisateur): bool
     {
-        // ✅ VÉRIFICATION DÉFENSIVE
         if (!$utilisateur) {
             return false;
         }
         
-        // Tous les utilisateurs authentifiés peuvent voir leurs messages
         return true;
     }
 
     /**
-     * Voir un message spécifique
+     * ✅ CORRIGÉ : Voir un message spécifique
      */
     public function view(?Utilisateur $utilisateur, Message $message): bool
     {
-        // ✅ VÉRIFICATION DÉFENSIVE
         if (!$utilisateur) {
             return false;
         }
         
-        // L'utilisateur peut voir un message s'il est l'expéditeur ou le destinataire
+        // ✅ Si c'est un message PUBLIC (forum ou annonce) → Tous peuvent voir
+        if ($message->estPublic()) {
+            return true;
+        }
+        
+        // ✅ Si c'est un message PRIVÉ → Seulement expéditeur ou destinataire
         return $message->expediteur_id === $utilisateur->id_utilisateur
             || $message->destinataire_id === $utilisateur->id_utilisateur;
     }
@@ -58,26 +59,57 @@ class MessagePolicy
      */
     public function create(?Utilisateur $utilisateur): bool
     {
-        // ✅ VÉRIFICATION DÉFENSIVE
         if (!$utilisateur) {
             return false;
         }
         
-        // Tous les utilisateurs authentifiés peuvent envoyer des messages
         return true;
     }
 
     /**
-     * Supprimer un message
+     * 🆕 AJOUT : Envoyer un message privé à un destinataire spécifique
+     */
+    public function sendMessageTo(?Utilisateur $expediteur, Utilisateur $destinataire): bool
+    {
+        if (!$expediteur) {
+            return false;
+        }
+
+        // ✅ RÈGLES HIÉRARCHIQUES
+
+        // Admin → Tous
+        if ($expediteur->role === 'admin') {
+            return true;
+        }
+
+        // Enseignant → Tous (enseignants + étudiants)
+        if ($expediteur->role === 'enseignant') {
+            return true;
+        }
+
+        // Étudiant → Enseignants UNIQUEMENT (PAS aux autres étudiants)
+        if ($expediteur->role === 'etudiant') {
+            return $destinataire->role === 'enseignant';
+        }
+
+        return false;
+    }
+
+    /**
+     * ✅ CORRIGÉ : Supprimer un message
      */
     public function delete(?Utilisateur $utilisateur, Message $message): bool
     {
-        // ✅ VÉRIFICATION DÉFENSIVE
         if (!$utilisateur) {
             return false;
         }
         
-        // L'utilisateur peut supprimer un message s'il est l'expéditeur ou le destinataire
+        // ✅ Messages publics : Seulement l'auteur peut supprimer
+        if ($message->estPublic()) {
+            return $message->expediteur_id === $utilisateur->id_utilisateur;
+        }
+        
+        // ✅ Messages privés : Expéditeur ou destinataire peuvent supprimer
         return $message->expediteur_id === $utilisateur->id_utilisateur
             || $message->destinataire_id === $utilisateur->id_utilisateur;
     }

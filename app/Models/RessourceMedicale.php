@@ -21,7 +21,7 @@ class RessourceMedicale extends Model
         'type_fichier',
         'taille_fichier',
         'nombre_telechargements',
-        'nombre_vues', // 🆕 AJOUTÉ
+        'nombre_vues',
         'est_public',
         'ajoute_par'
     ];
@@ -30,7 +30,7 @@ class RessourceMedicale extends Model
         'est_public' => 'boolean',
         'taille_fichier' => 'integer',
         'nombre_telechargements' => 'integer',
-        'nombre_vues' => 'integer', // 🆕 AJOUTÉ
+        'nombre_vues' => 'integer',
     ];
 
     /**
@@ -42,6 +42,30 @@ class RessourceMedicale extends Model
     }
 
     /**
+     * 🆕 Relation : Une ressource a plusieurs likes
+     */
+    public function likes()
+    {
+        return $this->hasMany(RessourceLike::class, 'ressource_id', 'id_ressource');
+    }
+
+    /**
+     * 🆕 Vérifier si un utilisateur a liké cette ressource
+     */
+    public function estLikePar($utilisateurId)
+    {
+        return $this->likes()->where('utilisateur_id', $utilisateurId)->exists();
+    }
+
+    /**
+     * 🆕 Compter le nombre total de likes
+     */
+    public function getNombreLikesAttribute()
+    {
+        return $this->likes()->count();
+    }
+
+    /**
      * Incrémenter le nombre de téléchargements
      */
     public function incrementerTelechargements()
@@ -50,7 +74,7 @@ class RessourceMedicale extends Model
     }
 
     /**
-     * 🆕 Incrémenter le nombre de vues
+     * Incrémenter le nombre de vues
      */
     public function incrementerVues()
     {
