@@ -123,12 +123,21 @@ Route::middleware('auth.jwt')->group(function () {
     // ====================================================================
     // 🏥 SUIVI SANITAIRE - Données Sanitaires
     // ====================================================================
-    
+
     Route::prefix('donnees-sanitaires')->group(function () {
         
-        // Accessibles à TOUS les utilisateurs authentifiés
-        Route::get('/', [DonneeSanitaireController::class, 'index']);
+        // ✅ IMPORTANT : Routes spécifiques AVANT les routes paramétrées
+        
+        // Statistiques (avant /{id})
         Route::get('/statistiques', [DonneeSanitaireController::class, 'statistiques']);
+        
+        // 🆕 Recherche par code (avant /{id})
+        Route::get('/rechercher-code', [DonneeSanitaireController::class, 'rechercherParCode']);
+        
+        // Liste
+        Route::get('/', [DonneeSanitaireController::class, 'index']);
+        
+        // ✅ Routes paramétrées EN DERNIER
         Route::get('/{id}', [DonneeSanitaireController::class, 'show']);
         
         // Création accessible à tous (admin, enseignant, étudiant)
@@ -137,9 +146,6 @@ Route::middleware('auth.jwt')->group(function () {
         // Modification/Suppression selon permissions (Policies)
         Route::put('/{id}', [DonneeSanitaireController::class, 'update']);
         Route::delete('/{id}', [DonneeSanitaireController::class, 'destroy']);
-         
-        // 🆕 Recherche par code
-        Route::get('/rechercher-code', [DonneeSanitaireController::class, 'rechercherParCode']);
     });
 
     // ====================================================================

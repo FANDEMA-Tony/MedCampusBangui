@@ -20,6 +20,14 @@ class DonneeSanitaireController extends BaseApiController
         
         $query = DonneeSanitaire::with('collecteur');
 
+        // 🆕 Filtre par nom patient
+        if ($request->has('nom_patient') && !empty($request->nom_patient)) {
+            $query->where(function($q) use ($request) {
+                $q->where('nom_patient', 'like', '%' . $request->nom_patient . '%')
+                ->orWhere('prenom_patient', 'like', '%' . $request->nom_patient . '%');
+            });
+        }
+
         // Filtre par pathologie
         if ($request->has('pathologie')) {
             $query->pathologie($request->pathologie);
