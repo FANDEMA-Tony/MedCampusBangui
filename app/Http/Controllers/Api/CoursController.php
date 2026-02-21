@@ -89,11 +89,14 @@ class CoursController extends BaseApiController
                 $id_enseignant = $enseignant->id_enseignant;
             }
 
+            // 🔥 CORRECTION : Ajouter filiere et niveau
             $cours = Cours::create([
                 'code' => $request->code,
                 'titre' => $request->titre,
                 'description' => $request->description,
                 'id_enseignant' => $id_enseignant,
+                'filiere' => $request->filiere,  // 🆕 AJOUTÉ
+                'niveau' => $request->niveau,    // 🆕 AJOUTÉ
             ]);
 
             return response()->json([
@@ -166,8 +169,8 @@ class CoursController extends BaseApiController
         }
 
         try {
-            // 🔹 Champs modifiables
-            $fieldsToUpdate = ['code', 'titre', 'description'];
+            // 🔥 CORRECTION : Ajouter filiere et niveau aux champs modifiables
+            $fieldsToUpdate = ['code', 'titre', 'description', 'filiere', 'niveau']; // 🆕 AJOUTÉ
             
             // 🔹 SI ADMIN et qu'il envoie id_enseignant, on l'ajoute
             if (auth()->user()->role === 'admin' && $request->has('id_enseignant')) {
@@ -248,7 +251,7 @@ class CoursController extends BaseApiController
         }
     }
 
-        /**
+    /**
      * Mes cours (pour l'enseignant connecté)
      */
     public function mesCours()
@@ -285,9 +288,9 @@ class CoursController extends BaseApiController
     }
 
     /**
- * Mes notes (notes des cours de l'enseignant connecté)
- */
-public function mesNotes()
+     * Mes notes (notes des cours de l'enseignant connecté)
+     */
+    public function mesNotes()
     {
         try {
             $utilisateur = auth()->user();
@@ -323,5 +326,53 @@ public function mesNotes()
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+    
+    /**
+     * 🆕 Récupérer cours groupés par filière et niveau
+     */
+    public function indexGrouped()
+    {
+        $this->authorize('viewAny', Cours::class);
+        
+        $cours = Cours::with('enseignant')
+                    ->orderBy('filiere')
+                    ->orderBy('niveau')
+                    ->orderBy('titre')
+                    ->get();
+        
+        // 🔥 CORRECTION : Grouper par FILIÈRE DU COURS (pas null)
+        $grouped = $cours->groupBy(function($c) {
+            return $c->filiere ?: 'Non spécifiée';
+        })->map(function ($filiereCours, $filiere) {
+            
+            // Sous-grouper par NIVEAU DU COURS
+            $byNiveau = $filiereCours->groupBy(function($c) {
+                return $c->niveau ?: 'Non spécifié';
+            })->map(function ($niveauCours, $niveau) {
+                return [
+                    'niveau' => $niveau,
+                    'count' => $niveauCours->count(),
+                    'cours' => $niveauCours->values()
+                ];
+            })->sortBy(function($niveauGroup) {
+                // Tri personnalisé : L1, L2, L3, M1, M2, Doctorat
+                $ordre = ['L1' => 1, 'L2' => 2, 'L3' => 3, 'M1' => 4, 'M2' => 5, 'Doctorat' => 6];
+                return $ordre[$niveauGroup['niveau']] ?? 99;
+            })->values();
+            
+            return [
+                'filiere' => $filiere,
+                'total' => $filiereCours->count(),
+                'niveaux' => $byNiveau
+            ];
+        })->sortBy('filiere')->values();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Cours groupés récupérés avec succès',
+            'data' => $grouped,
+            'total' => $cours->count()
+        ], 200);
     }
 }

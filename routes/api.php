@@ -43,6 +43,8 @@ Route::middleware('auth.jwt')->group(function () {
     // ====================================================================
     
     Route::get('/enseignants', [EnseignantController::class, 'index']);
+    Route::get('/enseignants-grouped', [EnseignantController::class, 'indexGrouped']); // 🆕 AJOUTER CETTE LIGNE
+    Route::get('/cours-grouped', [CoursController::class, 'indexGrouped']); // 🆕 NOUVELLE ROUTE
     Route::get('/enseignants/{enseignant}/cours', [EnseignantController::class, 'cours']);
     
     // ====================================================================
@@ -91,6 +93,7 @@ Route::middleware('auth.jwt')->group(function () {
     
     Route::middleware('role:admin,enseignant')->group(function () {
         Route::apiResource('notes', NoteController::class);
+        Route::get('/notes-grouped', [NoteController::class, 'indexGrouped']); // 🆕 NOUVELLE ROUTE
     });
 
     // ====================================================================

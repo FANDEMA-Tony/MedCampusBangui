@@ -13,16 +13,16 @@ class Cours extends Model
         'code',
         'titre',
         'description',
-        'id_enseignant'
+        'id_enseignant',
+        'filiere',    // 🆕 AJOUTÉ
+        'niveau',     // 🆕 AJOUTÉ
     ];
 
-    // Relation : Un cours appartient à un enseignant
     public function enseignant()
     {
         return $this->belongsTo(Enseignant::class, 'id_enseignant', 'id_enseignant');
     }
 
-    // Relation : Un cours a plusieurs notes
     public function notes()
     {
         return $this->hasMany(Note::class, 'id_cours', 'id_cours');

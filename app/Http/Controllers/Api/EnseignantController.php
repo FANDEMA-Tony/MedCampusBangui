@@ -196,4 +196,35 @@ class EnseignantController extends BaseApiController
             ], 500);
         }
     }
+
+        /**
+     * 🆕 Récupérer enseignants groupés par spécialité
+     */
+    public function indexGrouped()
+    {
+        $this->authorize('viewAny', Enseignant::class);
+        
+        $enseignants = Enseignant::withCount('cours')
+                                ->orderBy('specialite')
+                                ->orderBy('nom')
+                                ->get();
+        
+        // Grouper par spécialité
+        $grouped = $enseignants->groupBy(function($ens) {
+            return $ens->specialite ?: 'Non spécifiée';
+        })->map(function ($specialiteEns, $specialite) {
+            return [
+                'specialite' => $specialite,
+                'total' => $specialiteEns->count(),
+                'enseignants' => $specialiteEns->values()
+            ];
+        })->sortBy('specialite')->values();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Enseignants groupés récupérés avec succès',
+            'data' => $grouped,
+            'total' => $enseignants->count()
+        ], 200);
+    }
 }
