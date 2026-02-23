@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Enseignant;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class EnseignantController extends BaseApiController
 {
@@ -167,7 +168,7 @@ class EnseignantController extends BaseApiController
     public function mesEtudiants()
     {
         try {
-            $utilisateur = auth()->user();
+            $utilisateur = Auth::user();
             
             // Vérifier que c'est bien un enseignant
             $enseignant = Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();

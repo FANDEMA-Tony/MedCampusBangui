@@ -81,6 +81,7 @@ Route::middleware('auth.jwt')->group(function () {
     Route::middleware('role:admin,enseignant')->group(function () {
         Route::get('/mes-cours', [CoursController::class, 'mesCours']);
         Route::get('/mes-etudiants', [EtudiantController::class, 'mesEtudiants']);
+        Route::get('/etudiants-par-cours/{id_cours}', [EtudiantController::class, 'getEtudiantsParCours']); // 🆕 NOUVELLE ROUTE
         Route::get('/mes-notes', [CoursController::class, 'mesNotes']);
         
         Route::apiResource('cours', CoursController::class);
@@ -103,6 +104,8 @@ Route::middleware('auth.jwt')->group(function () {
     Route::middleware('role:etudiant')->group(function () {
         Route::get('/mes-informations', [EtudiantController::class, 'show']);
         Route::get('/mes-notes-etudiant', [NoteController::class, 'mesNotes']);
+        Route::get('/mes-cours-etudiant', [CoursController::class, 'mesCoursEtudiant']); // 🔥 CORRECTION
+        Route::get('/mes-cours-etudiant/{id_cours}', [CoursController::class, 'detailCoursEtudiant']); // 🔥 CORRECTION
     });
 
     // ====================================================================

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Note;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class NoteController extends BaseApiController
@@ -104,13 +106,15 @@ class NoteController extends BaseApiController
      */
     public function store(Request $request)
     {
+        // ✅ Autorisation
         $this->authorize('create', Note::class);
         
+        // 🔥 CORRECTION : Ajouter validation pour semestre
         $validator = Validator::make($request->all(), [
             'id_etudiant' => 'required|exists:etudiants,id_etudiant',
             'id_cours' => 'required|exists:cours,id_cours',
             'valeur' => 'required|numeric|min:0|max:20',
-            'semestre' => 'required|in:S1,S2,S3,S4,S5,S6', // 🆕
+            'semestre' => 'required|in:S1,S2,S3,S4,S5,S6', // 🆕 AJOUTÉ
             'date_evaluation' => 'required|date',
         ], [
             'id_etudiant.required' => 'L\'étudiant est obligatoire.',
@@ -118,33 +122,60 @@ class NoteController extends BaseApiController
             'id_cours.required' => 'Le cours est obligatoire.',
             'id_cours.exists' => 'Ce cours n\'existe pas.',
             'valeur.required' => 'La note est obligatoire.',
+            'valeur.numeric' => 'La note doit être un nombre.',
             'valeur.min' => 'La note ne peut pas être négative.',
             'valeur.max' => 'La note ne peut pas dépasser 20.',
             'semestre.required' => 'Le semestre est obligatoire.', // 🆕
             'semestre.in' => 'Le semestre doit être S1, S2, S3, S4, S5 ou S6.', // 🆕
             'date_evaluation.required' => 'La date d\'évaluation est obligatoire.',
+            'date_evaluation.date' => 'La date d\'évaluation doit être une date valide.',
         ]);
 
         if ($validator->fails()) {
-            return $this->errorResponse($validator->errors());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur de validation',
+                'errors' => $validator->errors()
+            ], 422);
         }
 
         try {
-            // Créer la note (la session sera déterminée automatiquement par le modèle)
+            // 🔥 VÉRIFICATION : L'étudiant appartient bien au cours (filière + niveau)
+            $cours = \App\Models\Cours::find($request->id_cours);
+            $etudiant = \App\Models\Etudiant::find($request->id_etudiant);
+            
+            // 🔥 SÉCURITÉ : Vérifier que l'étudiant correspond au cours
+            if ($cours->filiere && $cours->niveau) {
+                if ($etudiant->filiere !== $cours->filiere || $etudiant->niveau !== $cours->niveau) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Cet étudiant ({$etudiant->filiere} {$etudiant->niveau}) ne correspond pas à ce cours ({$cours->filiere} {$cours->niveau})."
+                    ], 422);
+                }
+            }
+            
+            // 🆕 Créer la note AVEC le semestre
             $note = Note::create([
                 'id_etudiant' => $request->id_etudiant,
                 'id_cours' => $request->id_cours,
                 'valeur' => $request->valeur,
-                'semestre' => $request->semestre, // 🆕
+                'semestre' => $request->semestre, // 🆕 AJOUTÉ
                 'date_evaluation' => $request->date_evaluation,
-                // session et est_rattrape seront gérés automatiquement
+                // session et est_rattrape sont gérés automatiquement par le modèle
             ]);
 
-            $note->load(['etudiant', 'cours']);
-
-            return $this->successResponse($note, "Note créée avec succès", 201);
+            return response()->json([
+                'success' => true,
+                'message' => 'Note créée avec succès',
+                'data' => $note->load(['etudiant', 'cours'])
+            ], 201);
 
         } catch (\Exception $e) {
+            Log::error('❌ Erreur création note:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur est survenue lors de la création de la note.',
@@ -224,7 +255,7 @@ class NoteController extends BaseApiController
      */
     public function mesNotes()
     {
-        $utilisateur = auth()->user();
+        $utilisateur = Auth::user();
         
         $etudiant = \App\Models\Etudiant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
         

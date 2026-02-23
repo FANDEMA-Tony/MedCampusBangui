@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Etudiant;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class EtudiantController extends BaseApiController
 {
@@ -199,7 +200,7 @@ class EtudiantController extends BaseApiController
     public function mesEtudiants()
     {
         try {
-            $utilisateur = auth()->user();
+            $utilisateur = Auth::user();
             
             $enseignant = \App\Models\Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
             
@@ -216,6 +217,68 @@ class EtudiantController extends BaseApiController
                 'success' => true,
                 'message' => 'Étudiants récupérés avec succès',
                 'data' => $etudiants
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des étudiants.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+        /**
+     * 🆕 Récupérer les étudiants FILTRÉS par filière et niveau d'un cours
+     * Permet à l'enseignant de voir UNIQUEMENT les étudiants du cours sélectionné
+     */
+    public function getEtudiantsParCours($id_cours)
+    {
+        try {
+            $utilisateur = Auth::user();
+            
+            // Vérifier que c'est bien un enseignant
+            $enseignant = \App\Models\Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
+            
+            if (!$enseignant) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous n\'êtes pas enregistré comme enseignant.'
+                ], 403);
+            }
+            
+            // 🔥 RÉCUPÉRER LE COURS (vérifier que l'enseignant en est propriétaire)
+            $cours = \App\Models\Cours::where('id_cours', $id_cours)
+                                    ->where('id_enseignant', $enseignant->id_enseignant)
+                                    ->first();
+            
+            if (!$cours) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce cours ne vous appartient pas ou n\'existe pas.'
+                ], 403);
+            }
+            
+            // 🎯 FILTRER LES ÉTUDIANTS : MÊME FILIÈRE + MÊME NIVEAU QUE LE COURS
+            $etudiants = Etudiant::where('filiere', $cours->filiere)
+                                ->where('niveau', $cours->niveau)
+                                ->orderBy('nom')
+                                ->get();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Étudiants filtrés récupérés avec succès',
+                'data' => [
+                    'cours' => [
+                        'id' => $cours->id_cours,
+                        'code' => $cours->code,
+                        'titre' => $cours->titre,
+                        'filiere' => $cours->filiere,
+                        'niveau' => $cours->niveau
+                    ],
+                    'etudiants' => $etudiants,
+                    'count' => $etudiants->count()
+                ]
             ], 200);
             
         } catch (\Exception $e) {

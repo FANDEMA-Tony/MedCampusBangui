@@ -6,6 +6,7 @@ use App\Models\Cours;
 use App\Models\Enseignant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
 
 class CoursController extends BaseApiController
 {
@@ -52,7 +53,7 @@ class CoursController extends BaseApiController
         ];
         
         // 🔹 SI ADMIN, il peut choisir l'enseignant
-        if (auth()->user()->role === 'admin') {
+        if (Auth::user()->role === 'admin') {
             $rules['id_enseignant'] = 'required|exists:enseignants,id_enseignant';
             $messages['id_enseignant.required'] = 'L\'enseignant est obligatoire.';
             $messages['id_enseignant.exists'] = 'Cet enseignant n\'existe pas.';
@@ -72,11 +73,11 @@ class CoursController extends BaseApiController
             $id_enseignant = null;
             
             // 🔹 SI ADMIN : utilise l'id_enseignant envoyé
-            if (auth()->user()->role === 'admin') {
+            if (Auth::user()->role === 'admin') {
                 $id_enseignant = $request->id_enseignant;
             } else {
                 // 🔹 SI ENSEIGNANT : récupère automatiquement son ID
-                $utilisateur = auth()->user();
+                $utilisateur = Auth::user();
                 $enseignant = Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
                 
                 if (!$enseignant) {
@@ -153,7 +154,7 @@ class CoursController extends BaseApiController
         ];
         
         // 🔹 SI ADMIN, il peut changer l'enseignant
-        if (auth()->user()->role === 'admin') {
+        if (Auth::user()->role === 'admin') {
             $rules['id_enseignant'] = 'sometimes|exists:enseignants,id_enseignant';
             $messages['id_enseignant.exists'] = 'Cet enseignant n\'existe pas.';
         }
@@ -173,7 +174,7 @@ class CoursController extends BaseApiController
             $fieldsToUpdate = ['code', 'titre', 'description', 'filiere', 'niveau']; // 🆕 AJOUTÉ
             
             // 🔹 SI ADMIN et qu'il envoie id_enseignant, on l'ajoute
-            if (auth()->user()->role === 'admin' && $request->has('id_enseignant')) {
+            if (Auth::user()->role === 'admin' && $request->has('id_enseignant')) {
                 $fieldsToUpdate[] = 'id_enseignant';
             }
             
@@ -257,7 +258,7 @@ class CoursController extends BaseApiController
     public function mesCours()
     {
         try {
-            $utilisateur = auth()->user();
+            $utilisateur = Auth::user();
             
             // Si enseignant, récupérer son id_enseignant
             $enseignant = Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
@@ -293,7 +294,7 @@ class CoursController extends BaseApiController
     public function mesNotes()
     {
         try {
-            $utilisateur = auth()->user();
+            $utilisateur = Auth::user();
             
             $enseignant = Enseignant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
             
@@ -374,5 +375,132 @@ class CoursController extends BaseApiController
             'data' => $grouped,
             'total' => $cours->count()
         ], 200);
+    }
+
+    /**
+     * 🆕 MES COURS (pour étudiant connecté)
+     * Retourne SEULEMENT les cours de sa filière + son niveau
+     */
+    public function mesCoursEtudiant()
+    {
+        try {
+            $utilisateur = Auth::user();
+            
+            // Récupérer l'étudiant connecté
+            $etudiant = \App\Models\Etudiant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
+            
+            if (!$etudiant) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous n\'êtes pas enregistré comme étudiant.'
+                ], 403);
+            }
+            
+            // 🔥 SÉCURITÉ : Filtrer par filière + niveau de l'étudiant
+            $cours = Cours::where('filiere', $etudiant->filiere)
+                        ->where('niveau', $etudiant->niveau)
+                        ->with('enseignant')
+                        ->orderBy('titre')
+                        ->get();
+            
+            // Enrichir avec les notes de l'étudiant pour chaque cours
+            $coursAvecNotes = $cours->map(function($c) use ($etudiant) {
+                $note = \App\Models\Note::where('id_cours', $c->id_cours)
+                                    ->where('id_etudiant', $etudiant->id_etudiant)
+                                    ->first();
+                
+                $c->ma_note = $note ? $note->valeur : null;
+                $c->date_note = $note ? $note->date_evaluation : null;
+                $c->session = $note ? $note->session : null;
+                $c->semestre_note = $note ? $note->semestre : null;
+                
+                return $c;
+            });
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Vos cours récupérés avec succès',
+                'data' => [
+                    'etudiant' => [
+                        'filiere' => $etudiant->filiere,
+                        'niveau' => $etudiant->niveau,
+                        'nom_complet' => $etudiant->prenom . ' ' . $etudiant->nom
+                    ],
+                    'cours' => $coursAvecNotes
+                ]
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des cours.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 🆕 DÉTAIL D'UN COURS (pour étudiant)
+     * Vérifie que l'étudiant a accès à ce cours (même filière + niveau)
+     */
+    public function detailCoursEtudiant($id_cours)
+    {
+        try {
+            $utilisateur = Auth::user();
+            
+            $etudiant = \App\Models\Etudiant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
+            
+            if (!$etudiant) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous n\'êtes pas enregistré comme étudiant.'
+                ], 403);
+            }
+            
+            // Récupérer le cours
+            $cours = Cours::with('enseignant')->find($id_cours);
+            
+            if (!$cours) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ce cours n\'existe pas.'
+                ], 404);
+            }
+            
+            // 🔥 SÉCURITÉ : Vérifier que l'étudiant a accès à ce cours
+            if ($cours->filiere !== $etudiant->filiere || $cours->niveau !== $etudiant->niveau) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Vous n\'avez pas accès à ce cours.'
+                ], 403);
+            }
+            
+            // Récupérer la note de l'étudiant pour ce cours
+            $note = \App\Models\Note::where('id_cours', $id_cours)
+                                ->where('id_etudiant', $etudiant->id_etudiant)
+                                ->first();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Détails du cours récupérés avec succès',
+                'data' => [
+                    'cours' => $cours,
+                    'ma_note' => $note ? [
+                        'valeur' => $note->valeur,
+                        'date' => $note->date_evaluation,
+                        'session' => $note->session,
+                        'semestre' => $note->semestre,
+                        'est_rattrape' => $note->est_rattrape
+                    ] : null
+                ]
+            ], 200);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération du cours.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }
