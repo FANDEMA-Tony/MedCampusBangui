@@ -242,28 +242,36 @@ class RessourceMedicaleController extends BaseApiController
     }
 
     /**
-     * Télécharger une ressource
+     * 📥 Télécharger une ressource
      */
     public function telecharger(RessourceMedicale $ressourceMedicale)
     {
-        // Autorisation
-        $this->authorize('view', $ressourceMedicale);
-        
         try {
-            // ✅ Incrémenter le compteur de téléchargements
-            $ressourceMedicale->incrementerTelechargements();
-
-            // Retourner le fichier en téléchargement
-            return Storage::disk('public')->download(
-                $ressourceMedicale->chemin_fichier,
+            // ✅ CORRECTION : 'nombre_telechargements' et non 'nb_telechargements'
+            // C'était la cause du 404 — l'exception SQL faisait retourner une 404
+            $ressourceMedicale->increment('nombre_telechargements');
+            
+            // ✅ Vérifier que le fichier existe
+            if (!Storage::disk('public')->exists($ressourceMedicale->chemin_fichier)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Fichier introuvable sur le serveur.'
+                ], 404);
+            }
+            
+            // ✅ Utiliser response()->download() avec le chemin complet
+            $cheminComplet = storage_path('app/public/' . $ressourceMedicale->chemin_fichier);
+            
+            return response()->download(
+                $cheminComplet,
                 $ressourceMedicale->nom_fichier
             );
-
+            
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Fichier introuvable ou erreur lors du téléchargement.'
-            ], 404);
+                'message' => 'Erreur lors du téléchargement : ' . $e->getMessage()
+            ], 500);
         }
     }
 

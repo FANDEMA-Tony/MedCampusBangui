@@ -43,8 +43,8 @@ Route::middleware('auth.jwt')->group(function () {
     // ====================================================================
     
     Route::get('/enseignants', [EnseignantController::class, 'index']);
-    Route::get('/enseignants-grouped', [EnseignantController::class, 'indexGrouped']); // 🆕 AJOUTER CETTE LIGNE
-    Route::get('/cours-grouped', [CoursController::class, 'indexGrouped']); // 🆕 NOUVELLE ROUTE
+    Route::get('/enseignants-grouped', [EnseignantController::class, 'indexGrouped']);
+    Route::get('/cours-grouped', [CoursController::class, 'indexGrouped']);
     Route::get('/enseignants/{enseignant}/cours', [EnseignantController::class, 'cours']);
     
     // ====================================================================
@@ -52,9 +52,10 @@ Route::middleware('auth.jwt')->group(function () {
     // ====================================================================
     
     Route::get('/etudiants', [EtudiantController::class, 'index']);
-    Route::get('/etudiants-grouped', [EtudiantController::class, 'indexGrouped']); // 🆕 NOUVELLE ROUTE
+    Route::get('/etudiants-grouped', [EtudiantController::class, 'indexGrouped']);
     Route::get('/etudiants/{etudiant}/notes', [EtudiantController::class, 'notes']);
 
+    
     // ====================================================================
     // 👨‍💼 ADMIN UNIQUEMENT - CRUD Complet
     // ====================================================================
@@ -75,13 +76,26 @@ Route::middleware('auth.jwt')->group(function () {
     });
 
     // ====================================================================
+    // 📊 ANALYTICS - Chaque rôle accède à ses propres stats
+    // ====================================================================
+    
+    Route::get('/analytics/admin', [App\Http\Controllers\Api\AnalyticsController::class, 'statsAdmin'])
+        ->middleware('role:admin');
+        
+    Route::get('/analytics/etudiant', [App\Http\Controllers\Api\AnalyticsController::class, 'statsEtudiant'])
+        ->middleware('role:etudiant');
+        
+    Route::get('/analytics/enseignant', [App\Http\Controllers\Api\AnalyticsController::class, 'statsEnseignant'])
+        ->middleware('role:enseignant');
+
+    // ====================================================================
     // 📚 COURS - Admin + Enseignant
     // ====================================================================
     
     Route::middleware('role:admin,enseignant')->group(function () {
         Route::get('/mes-cours', [CoursController::class, 'mesCours']);
         Route::get('/mes-etudiants', [EtudiantController::class, 'mesEtudiants']);
-        Route::get('/etudiants-par-cours/{id_cours}', [EtudiantController::class, 'getEtudiantsParCours']); // 🆕 NOUVELLE ROUTE
+        Route::get('/etudiants-par-cours/{id_cours}', [EtudiantController::class, 'getEtudiantsParCours']);
         Route::get('/mes-notes', [CoursController::class, 'mesNotes']);
         
         Route::apiResource('cours', CoursController::class);
@@ -94,7 +108,7 @@ Route::middleware('auth.jwt')->group(function () {
     
     Route::middleware('role:admin,enseignant')->group(function () {
         Route::apiResource('notes', NoteController::class);
-        Route::get('/notes-grouped', [NoteController::class, 'indexGrouped']); // 🆕 NOUVELLE ROUTE
+        Route::get('/notes-grouped', [NoteController::class, 'indexGrouped']);
     });
 
     // ====================================================================
@@ -104,30 +118,37 @@ Route::middleware('auth.jwt')->group(function () {
     Route::middleware('role:etudiant')->group(function () {
         Route::get('/mes-informations', [EtudiantController::class, 'show']);
         Route::get('/mes-notes-etudiant', [NoteController::class, 'mesNotes']);
-        Route::get('/mes-cours-etudiant', [CoursController::class, 'mesCoursEtudiant']); // 🔥 CORRECTION
-        Route::get('/mes-cours-etudiant/{id_cours}', [CoursController::class, 'detailCoursEtudiant']); // 🔥 CORRECTION
+        Route::get('/mes-cours-etudiant', [CoursController::class, 'mesCoursEtudiant']);
+        Route::get('/mes-cours-etudiant/{id_cours}', [CoursController::class, 'detailCoursEtudiant']);
     });
 
     // ====================================================================
     // 📚 BIBLIOTHÈQUE MÉDICALE - Ressources
     // ====================================================================
+    // ✅ CORRECTION : Routes spécifiques AVANT les routes paramétrées /{ressourceMedicale}
+    // ✅ CORRECTION : Suppression du 2ème bloc dupliqué (middleware auth:api) qui causait le bug 404
     
     Route::prefix('ressources')->group(function () {
-    
-        // Accessibles à TOUS les utilisateurs authentifiés
+
+        // ── Routes sans paramètre EN PREMIER ──
         Route::get('/', [RessourceMedicaleController::class, 'index']);
-        Route::get('/{ressourceMedicale}', [RessourceMedicaleController::class, 'show']);
-        Route::get('/{ressourceMedicale}/telecharger', [RessourceMedicaleController::class, 'telecharger']);
-        
-        // 🆕 LIKE - Accessible à tous
-        Route::post('/{ressourceMedicale}/like', [RessourceMedicaleController::class, 'like']);
-        
-        // 🆕 PRÉVISUALISATION - Accessible à tous
-        Route::get('/{ressourceMedicale}/previsualiser', [RessourceMedicaleController::class, 'previsualiser']);
-        
-        // Réservées aux admin + enseignants
+
+        // ── Réservées aux admin + enseignants ──
         Route::middleware('role:admin,enseignant')->group(function () {
             Route::post('/', [RessourceMedicaleController::class, 'store']);
+        });
+
+        // ✅ Routes avec suffixe spécifique AVANT /{ressourceMedicale} seul
+        // (sinon Laravel intercepte "telecharger", "previsualiser", "like" comme un ID)
+        Route::get('/{ressourceMedicale}/telecharger', [RessourceMedicaleController::class, 'telecharger']);
+        Route::get('/{ressourceMedicale}/previsualiser', [RessourceMedicaleController::class, 'previsualiser']);
+        Route::post('/{ressourceMedicale}/like', [RessourceMedicaleController::class, 'like']);
+
+        // ── Routes paramétrées simples EN DERNIER ──
+        Route::get('/{ressourceMedicale}', [RessourceMedicaleController::class, 'show']);
+
+        // ── Modification/Suppression réservées aux admin + enseignants ──
+        Route::middleware('role:admin,enseignant')->group(function () {
             Route::put('/{ressourceMedicale}', [RessourceMedicaleController::class, 'update']);
             Route::delete('/{ressourceMedicale}', [RessourceMedicaleController::class, 'destroy']);
         });
@@ -144,7 +165,7 @@ Route::middleware('auth.jwt')->group(function () {
         // Statistiques (avant /{id})
         Route::get('/statistiques', [DonneeSanitaireController::class, 'statistiques']);
         
-        // 🆕 Recherche par code (avant /{id})
+        // Recherche par code (avant /{id})
         Route::get('/rechercher-code', [DonneeSanitaireController::class, 'rechercherParCode']);
         
         // Liste
@@ -178,31 +199,22 @@ Route::middleware('auth.jwt')->group(function () {
         
         // Forum de discussion
         Route::get('/forum', [MessageController::class, 'forum']);
-        
-        // CRUD Messages
+
+        // ✅ Routes avec suffixe spécifique AVANT /{message} seul
+        Route::post('/{message}/toggle-epingle', [MessageController::class, 'toggleEpingle']);
+        Route::post('/{message}/like', [MessageController::class, 'like']);
+        Route::get('/{message}/reponses', [MessageController::class, 'reponses']);
+        Route::post('/{message}/repondre', [MessageController::class, 'repondre']);
+
+        // ── Routes paramétrées simples EN DERNIER ──
         Route::get('/{message}', [MessageController::class, 'show']);
         Route::post('/', [MessageController::class, 'store']);
         Route::delete('/{message}', [MessageController::class, 'destroy']);
-        
-        // Épingler une annonce (admin uniquement)
-        Route::post('/{message}/toggle-epingle', [MessageController::class, 'toggleEpingle']);
-
-        // Liker un message
-        Route::post('/{message}/like', [MessageController::class, 'like']);
-
-        // Réponses à un message
-        Route::get('/{message}/reponses', [MessageController::class, 'reponses']);
-        Route::post('/{message}/repondre', [MessageController::class, 'repondre']);
     });
 
-
-    // 📚 RESSOURCES MÉDICALES
-    Route::prefix('ressources')->middleware('auth:api')->group(function () {
-        Route::get('/', [RessourceMedicaleController::class, 'index']);
-        Route::get('/{ressourceMedicale}', [RessourceMedicaleController::class, 'show']);
-        Route::post('/', [RessourceMedicaleController::class, 'store']);
-        Route::put('/{ressourceMedicale}', [RessourceMedicaleController::class, 'update']);
-        Route::delete('/{ressourceMedicale}', [RessourceMedicaleController::class, 'destroy']);
-        Route::get('/{ressourceMedicale}/telecharger', [RessourceMedicaleController::class, 'telecharger']);
-    });
+    // ====================================================================
+    // ✅ SUPPRIMÉ : Le 2ème bloc "ressources" dupliqué avec middleware('auth:api')
+    // qui causait le conflit de routes et le bug 404 sur /telecharger
+    // Toutes les routes ressources sont déjà gérées dans le bloc ci-dessus
+    // ====================================================================
 });

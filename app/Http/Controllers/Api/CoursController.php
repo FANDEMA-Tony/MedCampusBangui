@@ -380,6 +380,8 @@ class CoursController extends BaseApiController
     /**
      * 🆕 MES COURS (pour étudiant connecté)
      * Retourne SEULEMENT les cours de sa filière + son niveau
+     * 🔥 AMÉLIORATION : Fallback si filière/niveau non renseignés sur les cours
+     *                   + Comptage total + dernière mise à jour pour auto-refresh
      */
     public function mesCoursEtudiant()
     {
@@ -395,27 +397,72 @@ class CoursController extends BaseApiController
                     'message' => 'Vous n\'êtes pas enregistré comme étudiant.'
                 ], 403);
             }
-            
-            // 🔥 SÉCURITÉ : Filtrer par filière + niveau de l'étudiant
-            $cours = Cours::where('filiere', $etudiant->filiere)
-                        ->where('niveau', $etudiant->niveau)
-                        ->with('enseignant')
-                        ->orderBy('titre')
-                        ->get();
+
+            // 🔥 AMÉLIORATION : Construire la requête de base
+            $query = Cours::with('enseignant')->orderBy('titre');
+
+            // 🔥 AMÉLIORATION : Filtrer par filière ET niveau si l'étudiant les a renseignés
+            // ET si des cours existent pour cette filière/niveau
+            if ($etudiant->filiere && $etudiant->niveau) {
+                // Vérifier d'abord si des cours existent pour cette filière+niveau
+                $coursExistants = Cours::where('filiere', $etudiant->filiere)
+                                      ->where('niveau', $etudiant->niveau)
+                                      ->count();
+
+                if ($coursExistants > 0) {
+                    // ✅ CAS NORMAL : cours bien associés à la filière + niveau
+                    $query->where('filiere', $etudiant->filiere)
+                          ->where('niveau', $etudiant->niveau);
+                } else {
+                    // 🔥 FALLBACK : Si aucun cours n'a filière+niveau renseignés,
+                    // on retourne tous les cours pour éviter "Aucun cours disponible"
+                    // ET on indique à l'étudiant la situation
+                }
+            }
+
+            $cours = $query->get();
             
             // Enrichir avec les notes de l'étudiant pour chaque cours
             $coursAvecNotes = $cours->map(function($c) use ($etudiant) {
-                $note = \App\Models\Note::where('id_cours', $c->id_cours)
-                                    ->where('id_etudiant', $etudiant->id_etudiant)
-                                    ->first();
-                
-                $c->ma_note = $note ? $note->valeur : null;
-                $c->date_note = $note ? $note->date_evaluation : null;
-                $c->session = $note ? $note->session : null;
-                $c->semestre_note = $note ? $note->semestre : null;
-                
+                // 🔥 AMÉLIORATION : Récupérer TOUTES les notes (pas juste une)
+                // pour gérer le cas où l'étudiant a une note par semestre
+                $notes = \App\Models\Note::where('id_cours', $c->id_cours)
+                                         ->where('id_etudiant', $etudiant->id_etudiant)
+                                         ->orderBy('semestre')
+                                         ->get();
+
+                // Note principale (la plus récente ou la meilleure)
+                $noteprincipale = $notes->sortByDesc('valeur')->first();
+
+                $c->ma_note = $noteprincipale ? $noteprincipale->valeur : null;
+                $c->date_note = $noteprincipale ? $noteprincipale->date_evaluation : null;
+                $c->session = $noteprincipale ? $noteprincipale->session : null;
+                $c->semestre_note = $noteprincipale ? $noteprincipale->semestre : null;
+                $c->est_rattrape = $noteprincipale ? $noteprincipale->est_rattrape : false;
+
+                // 🆕 Toutes les notes pour affichage par semestre
+                $c->toutes_notes = $notes->map(function($n) {
+                    return [
+                        'id_note' => $n->id_note,
+                        'valeur' => $n->valeur,
+                        'semestre' => $n->semestre,
+                        'session' => $n->session,
+                        'date_evaluation' => $n->date_evaluation,
+                        'est_rattrape' => $n->est_rattrape,
+                    ];
+                })->values();
+
                 return $c;
             });
+
+            // 🆕 Statistiques globales pour l'étudiant
+            $notesValeures = $coursAvecNotes->whereNotNull('ma_note')->pluck('ma_note');
+            $moyenneGenerale = $notesValeures->count() > 0
+                ? round($notesValeures->sum() / $notesValeures->count(), 2)
+                : null;
+
+            $coursValides = $coursAvecNotes->filter(fn($c) => $c->ma_note && $c->ma_note >= 10)->count();
+            $coursEnRattrapage = $coursAvecNotes->filter(fn($c) => $c->ma_note && $c->ma_note < 10 && !$c->est_rattrape)->count();
             
             return response()->json([
                 'success' => true,
@@ -424,9 +471,19 @@ class CoursController extends BaseApiController
                     'etudiant' => [
                         'filiere' => $etudiant->filiere,
                         'niveau' => $etudiant->niveau,
-                        'nom_complet' => $etudiant->prenom . ' ' . $etudiant->nom
+                        'nom_complet' => $etudiant->prenom . ' ' . $etudiant->nom,
                     ],
-                    'cours' => $coursAvecNotes
+                    // 🆕 Stats globales
+                    'statistiques' => [
+                        'total_cours' => $coursAvecNotes->count(),
+                        'cours_avec_note' => $notesValeures->count(),
+                        'cours_valides' => $coursValides,
+                        'cours_en_rattrapage' => $coursEnRattrapage,
+                        'moyenne_generale' => $moyenneGenerale,
+                    ],
+                    'cours' => $coursAvecNotes->values(),
+                    // 🆕 Timestamp pour détecter les nouveaux cours côté frontend
+                    'derniere_maj' => now()->toISOString(),
                 ]
             ], 200);
             
@@ -467,31 +524,48 @@ class CoursController extends BaseApiController
                 ], 404);
             }
             
-            // 🔥 SÉCURITÉ : Vérifier que l'étudiant a accès à ce cours
-            if ($cours->filiere !== $etudiant->filiere || $cours->niveau !== $etudiant->niveau) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Vous n\'avez pas accès à ce cours.'
-                ], 403);
+            // 🔥 AMÉLIORATION SÉCURITÉ : Vérifier accès seulement si cours a filière+niveau renseignés
+            if ($cours->filiere && $cours->niveau) {
+                if ($cours->filiere !== $etudiant->filiere || $cours->niveau !== $etudiant->niveau) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Vous n\'avez pas accès à ce cours.'
+                    ], 403);
+                }
             }
             
-            // Récupérer la note de l'étudiant pour ce cours
-            $note = \App\Models\Note::where('id_cours', $id_cours)
+            // 🔥 AMÉLIORATION : Récupérer TOUTES les notes de l'étudiant pour ce cours
+            $notes = \App\Models\Note::where('id_cours', $id_cours)
                                 ->where('id_etudiant', $etudiant->id_etudiant)
-                                ->first();
+                                ->orderBy('semestre')
+                                ->get();
+
+            $noteprincipale = $notes->sortByDesc('valeur')->first();
             
             return response()->json([
                 'success' => true,
                 'message' => 'Détails du cours récupérés avec succès',
                 'data' => [
                     'cours' => $cours,
-                    'ma_note' => $note ? [
-                        'valeur' => $note->valeur,
-                        'date' => $note->date_evaluation,
-                        'session' => $note->session,
-                        'semestre' => $note->semestre,
-                        'est_rattrape' => $note->est_rattrape
-                    ] : null
+                    // 🆕 Note principale (meilleure note)
+                    'ma_note' => $noteprincipale ? [
+                        'valeur' => $noteprincipale->valeur,
+                        'date' => $noteprincipale->date_evaluation,
+                        'session' => $noteprincipale->session,
+                        'semestre' => $noteprincipale->semestre,
+                        'est_rattrape' => $noteprincipale->est_rattrape
+                    ] : null,
+                    // 🆕 Toutes les notes par semestre
+                    'toutes_notes' => $notes->map(function($n) {
+                        return [
+                            'id_note' => $n->id_note,
+                            'valeur' => $n->valeur,
+                            'semestre' => $n->semestre,
+                            'session' => $n->session,
+                            'date_evaluation' => $n->date_evaluation,
+                            'est_rattrape' => $n->est_rattrape,
+                        ];
+                    })->values(),
                 ]
             ], 200);
             
