@@ -7,6 +7,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Mail\NoteAttribuee;
+use App\Models\Certificat;
+use Illuminate\Support\Facades\Mail;
 
 class NoteController extends BaseApiController
 {
@@ -16,11 +19,11 @@ class NoteController extends BaseApiController
     public function index()
     {
         $this->authorize('viewAny', Note::class);
-        
+
         $notes = Note::with(['etudiant', 'cours'])
-                     ->orderBy('created_at', 'desc')
-                     ->get();
-        
+            ->orderBy('created_at', 'desc')
+            ->get();
+
         return $this->successResponse($notes, "Liste des notes récupérée avec succès");
     }
 
@@ -30,57 +33,57 @@ class NoteController extends BaseApiController
     public function indexGrouped()
     {
         $this->authorize('viewAny', Note::class);
-        
+
         $notes = Note::with(['etudiant', 'cours'])
-                    ->get();
-        
+            ->get();
+
         // 🔥 CORRECTION : Grouper par FILIÈRE/NIVEAU DE L'ÉTUDIANT (car note n'a pas ces champs)
-        $grouped = $notes->groupBy(function($note) {
+        $grouped = $notes->groupBy(function ($note) {
             return $note->etudiant->filiere ?: 'Non spécifiée';
-        })->map(function($filiereNotes, $filiere) {
-            
+        })->map(function ($filiereNotes, $filiere) {
+
             // Sous-grouper par niveau DE L'ÉTUDIANT
-            $byNiveau = $filiereNotes->groupBy(function($note) {
+            $byNiveau = $filiereNotes->groupBy(function ($note) {
                 return $note->etudiant->niveau ?: 'Non spécifié';
-            })->map(function($niveauNotes, $niveau) {
-                
+            })->map(function ($niveauNotes, $niveau) {
+
                 // Sous-grouper par semestre DE LA NOTE
-                $bySemestre = $niveauNotes->groupBy('semestre')->map(function($semestreNotes, $semestre) {
-                    
+                $bySemestre = $niveauNotes->groupBy('semestre')->map(function ($semestreNotes, $semestre) {
+
                     // Sous-grouper par session DE LA NOTE
-                    $bySession = $semestreNotes->groupBy('session')->map(function($sessionNotes, $session) {
+                    $bySession = $semestreNotes->groupBy('session')->map(function ($sessionNotes, $session) {
                         return [
                             'session' => $session,
                             'count' => $sessionNotes->count(),
                             'notes' => $sessionNotes->values()
                         ];
                     })->values();
-                    
+
                     return [
                         'semestre' => $semestre ?: 'S1',
                         'count' => $semestreNotes->count(),
                         'sessions' => $bySession
                     ];
                 })->sortBy('semestre')->values();
-                
+
                 return [
                     'niveau' => $niveau,
                     'count' => $niveauNotes->count(),
                     'semestres' => $bySemestre
                 ];
-            })->sortBy(function($niveauGroup) {
+            })->sortBy(function ($niveauGroup) {
                 // Tri personnalisé : L1, L2, L3, M1, M2, Doctorat
                 $ordre = ['L1' => 1, 'L2' => 2, 'L3' => 3, 'M1' => 4, 'M2' => 5, 'Doctorat' => 6];
                 return $ordre[$niveauGroup['niveau']] ?? 99;
             })->values();
-            
+
             return [
                 'filiere' => $filiere,
                 'total' => $filiereNotes->count(),
                 'niveaux' => $byNiveau
             ];
         })->sortBy('filiere')->values();
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Notes groupées récupérées avec succès',
@@ -95,9 +98,9 @@ class NoteController extends BaseApiController
     public function show(Note $note)
     {
         $this->authorize('view', $note);
-        
+
         $note->load(['etudiant', 'cours']);
-        
+
         return $this->successResponse($note, "Note récupérée avec succès");
     }
 
@@ -108,7 +111,7 @@ class NoteController extends BaseApiController
     {
         // ✅ Autorisation
         $this->authorize('create', Note::class);
-        
+
         // 🔥 CORRECTION : Ajouter validation pour semestre
         $validator = Validator::make($request->all(), [
             'id_etudiant' => 'required|exists:etudiants,id_etudiant',
@@ -143,7 +146,7 @@ class NoteController extends BaseApiController
             // 🔥 VÉRIFICATION : L'étudiant appartient bien au cours (filière + niveau)
             $cours = \App\Models\Cours::find($request->id_cours);
             $etudiant = \App\Models\Etudiant::find($request->id_etudiant);
-            
+
             // 🔥 SÉCURITÉ : Vérifier que l'étudiant correspond au cours
             if ($cours->filiere && $cours->niveau) {
                 if ($etudiant->filiere !== $cours->filiere || $etudiant->niveau !== $cours->niveau) {
@@ -153,7 +156,7 @@ class NoteController extends BaseApiController
                     ], 422);
                 }
             }
-            
+
             // 🆕 Créer la note AVEC le semestre
             $note = Note::create([
                 'id_etudiant' => $request->id_etudiant,
@@ -169,18 +172,32 @@ class NoteController extends BaseApiController
                 'message' => 'Note créée avec succès',
                 'data' => $note->load(['etudiant', 'cours'])
             ], 201);
-
         } catch (\Exception $e) {
             Log::error('❌ Erreur création note:', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur est survenue lors de la création de la note.',
                 'error' => $e->getMessage()
             ], 500);
+        }
+        try {
+            $etudiant    = $note->etudiant;
+            $utilisateur = $etudiant->utilisateur;
+            $moyenne     = floatval($note->valeur);
+            $mention     = Certificat::calculerMention($moyenne);
+
+            Mail::to($utilisateur->email)->send(new NoteAttribuee(
+                nomEtudiant: $etudiant->prenom . ' ' . $etudiant->nom,
+                titreCours: $note->cours->titre ?? 'Cours',
+                note: $moyenne,
+                mention: $mention,
+            ));
+        } catch (\Exception $e) {
+            \Log::warning('Email note non envoyé : ' . $e->getMessage());
         }
     }
 
@@ -190,7 +207,7 @@ class NoteController extends BaseApiController
     public function update(Request $request, Note $note)
     {
         $this->authorize('update', $note);
-        
+
         $validator = Validator::make($request->all(), [
             'id_etudiant' => 'sometimes|exists:etudiants,id_etudiant',
             'id_cours' => 'sometimes|exists:cours,id_cours',
@@ -222,13 +239,28 @@ class NoteController extends BaseApiController
             $note->load(['etudiant', 'cours']);
 
             return $this->successResponse($note, "Note mise à jour avec succès");
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur est survenue lors de la mise à jour de la note.',
                 'error' => $e->getMessage()
             ], 500);
+        }
+
+        try {
+            $etudiant    = $note->etudiant;
+            $utilisateur = $etudiant->utilisateur;
+            $moyenne     = floatval($note->valeur);
+            $mention     = Certificat::calculerMention($moyenne);
+
+            Mail::to($utilisateur->email)->send(new NoteAttribuee(
+                nomEtudiant: $etudiant->prenom . ' ' . $etudiant->nom,
+                titreCours: $note->cours->titre ?? 'Cours',
+                note: $moyenne,
+                mention: $mention,
+            ));
+        } catch (\Exception $e) {
+            \Log::warning('Email note non envoyé : ' . $e->getMessage());
         }
     }
 
@@ -238,7 +270,7 @@ class NoteController extends BaseApiController
     public function destroy(Note $note)
     {
         $this->authorize('delete', $note);
-        
+
         try {
             $note->delete();
             return $this->successResponse(null, "Note supprimée avec succès", 204);
@@ -256,21 +288,21 @@ class NoteController extends BaseApiController
     public function mesNotes()
     {
         $utilisateur = Auth::user();
-        
+
         $etudiant = \App\Models\Etudiant::where('id_utilisateur', $utilisateur->id_utilisateur)->first();
-        
+
         if (!$etudiant) {
             return response()->json([
                 'success' => false,
                 'message' => 'Vous n\'êtes pas enregistré comme étudiant.'
             ], 403);
         }
-        
+
         $notes = Note::where('id_etudiant', $etudiant->id_etudiant)
-                     ->with('cours')
-                     ->orderBy('date_evaluation', 'desc')
-                     ->get();
-        
+            ->with('cours')
+            ->orderBy('date_evaluation', 'desc')
+            ->get();
+
         return response()->json([
             'success' => true,
             'message' => 'Vos notes récupérées avec succès',

@@ -12,6 +12,9 @@ use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\CalendrierController;
 use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\QuizController;
+use App\Http\Controllers\Api\CertificatController;
+use App\Http\Controllers\Api\NotificationController;
+
 
 
 /*
@@ -28,6 +31,9 @@ use App\Http\Controllers\Api\QuizController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+
+// ✅ VÉRIFICATION PUBLIQUE — sans authentification
+Route::get('/certificats/verifier/{code}', [CertificatController::class, 'verifier']);
 
 // ========================================================================
 // 🔐 ROUTES PROTÉGÉES - JWT requis
@@ -251,6 +257,23 @@ Route::middleware('auth.jwt')->group(function () {
         Route::get('/{id}/stats',                [QuizController::class, 'stats']);
         Route::get('/{id}/mes-tentatives',       [QuizController::class, 'mesTentatives']);
         Route::post('/{id}/toggle-publie',       [QuizController::class, 'togglePublie']);
+    });
+
+    // ✅ CERTIFICATS — Sprint 6
+    Route::prefix('certificats')->group(function () {
+        Route::get('/eligibilite',        [CertificatController::class, 'eligibilite']);
+        Route::post('/generer',           [CertificatController::class, 'generer']);
+        Route::get('/',                   [CertificatController::class, 'mesCertificats']);
+        Route::get('/tous',               [CertificatController::class, 'tous']);
+        Route::post('/{id}/signer',       [CertificatController::class, 'signer']);
+        Route::get('/{id}/telecharger',   [CertificatController::class, 'telecharger']);
+    });
+
+    // ✅ NOTIFICATIONS — Sprint 7
+    Route::prefix('notifications')->group(function () {
+        Route::post('/annonce', [NotificationController::class, 'annonce']);
+        Route::post('/test',    [NotificationController::class, 'test']);
+        Route::get('/stats',    [NotificationController::class, 'stats']);
     });
     // ====================================================================
     // ✅ SUPPRIMÉ : Le 2ème bloc "ressources" dupliqué avec middleware('auth:api')

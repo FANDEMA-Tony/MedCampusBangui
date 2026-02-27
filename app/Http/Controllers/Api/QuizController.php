@@ -7,7 +7,9 @@ use Illuminate\Http\Request;
 use App\Models\Quiz;
 use App\Models\QuizQuestion;
 use App\Models\QuizTentative;
+use App\Mail\QuizPublie;
 use App\Models\Etudiant;
+use Illuminate\Support\Facades\Mail;
 
 class QuizController extends Controller
 {
@@ -22,7 +24,7 @@ class QuizController extends Controller
         $role = (string) $user->role;
 
         $query = Quiz::withCount('questions')
-                     ->with('createur:id_utilisateur,nom,prenom');
+            ->with('createur:id_utilisateur,nom,prenom');
 
         // Filtres
         if ($request->filled('filiere')) {
@@ -76,8 +78,8 @@ class QuizController extends Controller
         $role = (string) $user->role;
 
         $quiz = Quiz::with(['questions', 'createur:id_utilisateur,nom,prenom'])
-                    ->withCount('questions')
-                    ->findOrFail($id);
+            ->withCount('questions')
+            ->findOrFail($id);
 
         // Étudiant → quiz doit être publié
         if ($role === 'etudiant' && !$quiz->est_publie) {
@@ -120,7 +122,7 @@ class QuizController extends Controller
             'questions.*.question'        => 'required|string',
             'questions.*.type'            => 'required|in:qcm,vrai_faux,libre',
             'questions.*.options'         => 'nullable|array',
-            'questions.*.reponse_correcte'=> 'required|string',
+            'questions.*.reponse_correcte' => 'required|string',
             'questions.*.points'          => 'nullable|integer|min:1',
             'questions.*.ordre'           => 'nullable|integer',
         ]);
@@ -185,8 +187,13 @@ class QuizController extends Controller
         ]);
 
         $quiz->update($request->only([
-            'titre', 'description', 'filiere', 'niveau',
-            'duree_minutes', 'note_passage', 'est_publie',
+            'titre',
+            'description',
+            'filiere',
+            'niveau',
+            'duree_minutes',
+            'note_passage',
+            'est_publie',
         ]));
 
         $quiz->load('questions');
@@ -264,7 +271,12 @@ class QuizController extends Controller
         ]);
 
         $question->update($request->only([
-            'question', 'type', 'options', 'reponse_correcte', 'points', 'ordre',
+            'question',
+            'type',
+            'options',
+            'reponse_correcte',
+            'points',
+            'ordre',
         ]));
 
         return response()->json(['success' => true, 'data' => $question, 'message' => 'Question mise à jour']);
@@ -320,7 +332,7 @@ class QuizController extends Controller
                 $correct = true;
             } else {
                 $correct = strtolower(trim((string)$reponseEtudiant))
-                         === strtolower(trim((string)$question->reponse_correcte));
+                    === strtolower(trim((string)$question->reponse_correcte));
             }
 
             if ($correct) $scoreTotal += $question->points;
@@ -458,5 +470,28 @@ class QuizController extends Controller
             'data'    => ['est_publie' => $quiz->est_publie],
             'message' => $quiz->est_publie ? 'Quiz publié' : 'Quiz dépublié',
         ]);
+        if ($quiz->est_publie) {
+            try {
+                // Récupérer les étudiants de la filière du quiz
+                $etudiants = Etudiant::with('utilisateur')
+                    ->whereHas('utilisateur')
+                    ->get();
+
+                foreach ($etudiants as $etudiant) {
+                    if (!$etudiant->utilisateur) continue;
+                    // Filtrer par filière si définie
+                    if ($quiz->filiere && $etudiant->filiere !== $quiz->filiere) continue;
+
+                    Mail::to($etudiant->utilisateur->email)->send(new QuizPublie(
+                        nomEtudiant: $etudiant->prenom . ' ' . $etudiant->nom,
+                        titreQuiz: $quiz->titre,
+                        filiere: $quiz->filiere ?? 'Toutes filières',
+                        dureeMinutes: $quiz->duree_minutes,
+                    ));
+                }
+            } catch (\Exception $e) {
+                \Log::warning('Email quiz non envoyé : ' . $e->getMessage());
+            }
+        }
     }
 }

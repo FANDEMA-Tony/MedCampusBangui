@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Quiz extends Model
 {
     protected $primaryKey = 'id_quiz';
+    protected $table = 'quiz'; // ← AJOUTONS CETTE LIGNE
 
     protected $fillable = [
         'titre', 'description', 'filiere', 'niveau',

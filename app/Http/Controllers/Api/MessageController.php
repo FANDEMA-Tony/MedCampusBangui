@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
 use App\Models\MessageLike;
 use App\Models\ReponseMessage;
+use App\Mail\NouveauMessage;
+use Illuminate\Support\Facades\Mail;
+
 class MessageController extends BaseApiController
 {
     /**
@@ -16,7 +19,7 @@ class MessageController extends BaseApiController
     public function boiteReception()
     {
         $this->authorize('viewAny', Message::class);
-        
+
         $messages = Message::with('expediteur')
             ->recusPar(Auth::id())
             ->orderBy('created_at', 'desc')
@@ -38,7 +41,7 @@ class MessageController extends BaseApiController
     public function boiteEnvoi()
     {
         $this->authorize('viewAny', Message::class);
-        
+
         $messages = Message::with('destinataire')
             ->envoyesPar(Auth::id())
             ->orderBy('created_at', 'desc')
@@ -59,13 +62,13 @@ class MessageController extends BaseApiController
     public function annonces()
     {
         $this->authorize('viewAny', Message::class);
-        
+
         $utilisateur = Auth::user();
-        
+
         $annonces = Message::annoncesVisiblesPar($utilisateur)
             ->with(['expediteur', 'cours'])
             ->get();
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Annonces récupérées avec succès',
@@ -79,7 +82,7 @@ class MessageController extends BaseApiController
     public function forum()
     {
         $this->authorize('viewAny', Message::class);
-        
+
         $messages = Message::forum()
             ->with(['expediteur'])
             ->paginate(20);
@@ -99,7 +102,7 @@ class MessageController extends BaseApiController
     public function conversation($utilisateurId)
     {
         $this->authorize('viewAny', Message::class);
-        
+
         $messages = Message::with(['expediteur', 'destinataire'])
             ->conversation(Auth::id(), $utilisateurId)
             ->orderBy('created_at', 'asc')
@@ -110,7 +113,7 @@ class MessageController extends BaseApiController
             ->where('expediteur_id', $utilisateurId)
             ->nonLus()
             ->get()
-            ->each(function($message) {
+            ->each(function ($message) {
                 $message->marquerCommeLu();
             });
 
@@ -127,7 +130,7 @@ class MessageController extends BaseApiController
     public function show(Message $message)
     {
         $this->authorize('view', $message);
-        
+
         $message->load(['expediteur', 'destinataire', 'cours']);
 
         // Marquer comme lu si c'est le destinataire qui lit
@@ -173,7 +176,7 @@ class MessageController extends BaseApiController
             $rules['visibilite'] = 'required|in:tous,enseignants,etudiants,cours';
             $rules['sujet'] = 'required|string|max:255';
             $rules['id_cours'] = 'nullable|exists:cours,id_cours';
-            
+
             if (!in_array($role, ['admin', 'enseignant'])) {
                 return response()->json([
                     'success' => false,
@@ -212,7 +215,7 @@ class MessageController extends BaseApiController
         // 🆕 VÉRIFICATION HIÉRARCHIQUE (Messages privés uniquement)
         if ($type === 'prive') {
             $destinataire = \App\Models\Utilisateur::find($request->destinataire_id);
-            
+
             if (!$destinataire) {
                 return response()->json([
                     'success' => false,
@@ -223,7 +226,7 @@ class MessageController extends BaseApiController
             // ✅ CORRECTION FINALE : Vérification manuelle de la policy
             $policy = app(\App\Policies\MessagePolicy::class);
             $autorise = $policy->sendMessageTo($utilisateur, $destinataire);
-            
+
             if (!$autorise) {
                 return response()->json([
                     'success' => false,
@@ -249,18 +252,29 @@ class MessageController extends BaseApiController
 
             return response()->json([
                 'success' => true,
-                'message' => $type === 'prive' ? 'Message envoyé avec succès' : 
-                            ($type === 'annonce' ? 'Annonce publiée avec succès' : 
-                            'Message posté avec succès'),
+                'message' => $type === 'prive' ? 'Message envoyé avec succès' : ($type === 'annonce' ? 'Annonce publiée avec succès' :
+                        'Message posté avec succès'),
                 'data' => $message
             ], 201);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Une erreur est survenue lors de l\'envoi du message.',
                 'error' => $e->getMessage()
             ], 500);
+        }
+
+        try {
+            $destinataire = $message->destinataire;
+
+            Mail::to($destinataire->email)->send(new NouveauMessage(
+                nomDestinataire: $destinataire->prenom . ' ' . $destinataire->nom,
+                nomExpediteur: $message->expediteur->prenom . ' ' . $message->expediteur->nom,
+                sujet: $message->sujet ?? 'Nouveau message',
+                apercu: substr($message->contenu, 0, 100),
+            ));
+        } catch (\Exception $e) {
+            \Log::warning('Email message non envoyé : ' . $e->getMessage());
         }
     }
 
@@ -270,7 +284,7 @@ class MessageController extends BaseApiController
     public function destroy(Message $message)
     {
         $this->authorize('delete', $message);
-        
+
         try {
             $message->delete();
 
@@ -278,7 +292,6 @@ class MessageController extends BaseApiController
                 'success' => true,
                 'message' => 'Message supprimé avec succès'
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -293,7 +306,7 @@ class MessageController extends BaseApiController
     public function nonLus()
     {
         $this->authorize('viewAny', Message::class);
-        
+
         $count = Message::recusPar(Auth::id())->nonLus()->count();
 
         return response()->json([
@@ -312,21 +325,21 @@ class MessageController extends BaseApiController
     public function toggleEpingle(Message $message)
     {
         $utilisateur = Auth::user();
-        
+
         if ($utilisateur->role !== 'admin') {
             return response()->json([
                 'success' => false,
                 'message' => 'Seul l\'administrateur peut épingler des annonces.'
             ], 403);
         }
-        
+
         if ($message->type !== 'annonce') {
             return response()->json([
                 'success' => false,
                 'message' => 'Seules les annonces peuvent être épinglées.'
             ], 400);
         }
-        
+
         $message->est_epingle = !$message->est_epingle;
         $message->save();
 
@@ -342,7 +355,7 @@ class MessageController extends BaseApiController
     public function like(Message $message)
     {
         $this->authorize('view', $message);
-        
+
         if (!$message->estPublic()) {
             return response()->json([
                 'success' => false,
@@ -354,8 +367,8 @@ class MessageController extends BaseApiController
 
         // ✅ Vérifier si l'utilisateur a déjà liké
         $existingLike = MessageLike::where('id_message', $message->id_message)
-                                    ->where('id_utilisateur', $userId)
-                                    ->first();
+            ->where('id_utilisateur', $userId)
+            ->first();
 
         if ($existingLike) {
             // ✅ UNLIKER (retirer le like)
@@ -383,20 +396,20 @@ class MessageController extends BaseApiController
     }
 
     /**
- * 🆕 Liste des réponses d'un message
- */
-public function reponses(Message $message)
-{
-    $this->authorize('view', $message);
-    
-    $reponses = $message->reponses()->with('utilisateur')->get();
+     * 🆕 Liste des réponses d'un message
+     */
+    public function reponses(Message $message)
+    {
+        $this->authorize('view', $message);
 
-    return response()->json([
-        'success' => true,
-        'message' => 'Réponses récupérées avec succès',
-        'data' => $reponses
-    ], 200);
-}
+        $reponses = $message->reponses()->with('utilisateur')->get();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Réponses récupérées avec succès',
+            'data' => $reponses
+        ], 200);
+    }
 
     /**
      * 🆕 Ajouter une réponse à un message
@@ -404,7 +417,7 @@ public function reponses(Message $message)
     public function repondre(Request $request, Message $message)
     {
         $this->authorize('view', $message);
-        
+
         $validator = Validator::make($request->all(), [
             'contenu' => 'required|string',
         ], [
@@ -433,7 +446,6 @@ public function reponses(Message $message)
                 'message' => 'Réponse ajoutée avec succès',
                 'data' => $reponse
             ], 201);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
